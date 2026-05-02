@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useGameStore } from '@/store/gameStore'
 import { createClient } from '@/lib/supabaseClient'
+import { gameEngine } from '@/lib/gameEngine'
 import QuestionModal from './QuestionModal'
 import Mascot, { TEAM_PALETTE } from './Mascot'
 import toast from 'react-hot-toast'
@@ -60,7 +61,14 @@ export default function GameBoard() {
   const handleEndGame = async () => {
     store.setPhase('finished') // Update UI instantly
     if (sessionId) {
-      await (supabase.from('sessions') as any).update({ state: 'finished' }).eq('id', sessionId)
+      try {
+        const { error } = await (supabase.from('sessions') as any).update({ state: 'finished' }).eq('id', sessionId)
+        if (error) {
+          console.warn('Failed to end game session in database:', error)
+        }
+      } catch (err) {
+        console.warn('Network issue ending game session:', err)
+      }
     }
   }
 
@@ -81,36 +89,27 @@ export default function GameBoard() {
     }
   }
 
-  const handleModalClose = async () => {
-    const freshStore = useGameStore.getState()
-    const currentQuestions = freshStore.sessionQuestions
-    const isAllUsed = currentQuestions.length > 0 && currentQuestions.every(q => q.used)
-    
-    if (isAllUsed) {
+  const handleModalClose = () => {
+    const s = useGameStore.getState()
+    s.setSelectedQuestion(null)
+
+    // Check for end of game after modal is closed
+    const after = useGameStore.getState()
+    const allUsed = after.sessionQuestions.length > 0 && after.sessionQuestions.every(q => q.used)
+    if (allUsed) {
       handleEndGame()
-      freshStore.setSelectedQuestion(null)
-      return
-    }
-
-    freshStore.setSelectedQuestion(null)
-    triggerReaction('idle' as any)
-
-    const nextTeamIndex = (freshStore.currentTeamIndex + 1) % freshStore.teams.length
-    freshStore.setCurrentTeam(nextTeamIndex)
-    
-    // Fire-and-forget Supabase update to prevent UI lag
-    if (sessionId) {
-      (supabase.from('sessions') as any).update({ current_team_index: nextTeamIndex }).eq('id', sessionId).then(({ error }: any) => {
-        if (error) console.error('Failed to update turn:', error)
-      })
     }
   }
 
   // --- GAME EFFECTS & TRIGGERS (Moved to top level) ---
   useEffect(() => {
-    // 1. Intro Voice: Play once when player first sees the gameboard
+    // 1. Intro Voice: Play only once per session using sessionStorage
     if (settings && !introPlayedRef.current) {
-      triggerReaction('intro')
+      const storageKey = `intro_played_${sessionId}`
+      if (!sessionStorage.getItem(storageKey)) {
+        triggerReaction('intro')
+        sessionStorage.setItem(storageKey, 'true')
+      }
       introPlayedRef.current = true
     }
 
@@ -530,8 +529,12 @@ export default function GameBoard() {
                 <button
                   onClick={async () => {
                     const newScore = Math.max(0, team.score - scoringConfig.easy_points)
-                    await (supabase.from('teams') as any).update({ score: newScore }).eq('id', team.id)
                     store.updateScore(team.id, newScore)
+                    try {
+                      await (supabase.from('teams') as any).update({ score: newScore }).eq('id', team.id)
+                    } catch (e) {
+                      console.warn('Network issue syncing score')
+                    }
                   }}
                   className="w-7 h-7 rounded-full font-black text-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 bg-red-500/10 text-red-500"
                 >−</button>
@@ -542,8 +545,12 @@ export default function GameBoard() {
                 <button
                   onClick={async () => {
                     const newScore = team.score + scoringConfig.easy_points
-                    await (supabase.from('teams') as any).update({ score: newScore }).eq('id', team.id)
                     store.updateScore(team.id, newScore)
+                    try {
+                      await (supabase.from('teams') as any).update({ score: newScore }).eq('id', team.id)
+                    } catch (e) {
+                      console.warn('Network issue syncing score')
+                    }
                   }}
                   className="w-7 h-7 rounded-full font-black text-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 bg-green-500/10 text-green-500"
                 >+</button>
@@ -554,7 +561,7 @@ export default function GameBoard() {
       </div>
 
       {/* ── QUESTION MODAL ── */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {selectedQuestion && (
           <QuestionModal
             key={selectedQuestion.id}

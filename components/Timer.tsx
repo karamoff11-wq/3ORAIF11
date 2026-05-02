@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 
 interface Props {
@@ -19,13 +19,24 @@ export default function Timer({ initialSeconds, isActive, onTimeUp, color = '#8B
 
   const timerColor = seconds > 10 ? color : seconds > 5 ? '#f59e0b' : '#ef4444'
 
-  useEffect(() => { setSeconds(initialSeconds) }, [initialSeconds])
+  const hasFiredRef = useRef(false)
+
+  useEffect(() => { 
+    setSeconds(initialSeconds)
+    hasFiredRef.current = false 
+  }, [initialSeconds])
 
   useEffect(() => {
-    if (!isActive || seconds <= 0) {
-      if (seconds === 0) onTimeUp()
+    if (!isActive || seconds < 0) return
+    
+    if (seconds === 0) {
+      if (!hasFiredRef.current) {
+        hasFiredRef.current = true
+        onTimeUp()
+      }
       return
     }
+
     const id = setInterval(() => setSeconds(p => p - 1), 1000)
     return () => clearInterval(id)
   }, [isActive, seconds, onTimeUp])

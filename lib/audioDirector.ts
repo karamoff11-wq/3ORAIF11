@@ -179,10 +179,12 @@ class MascotAudioDirector {
       try {
         await this.executeStep(step, () => cancelled)
       } catch (e) {
-        console.error('Sequence step failed:', e)
+        console.warn('Sequence step failed:', e)
       }
     }
 
+    // --- Cleanup after sequence (Interrupted or Finished) ---
+    useGameStore.getState().setIsTalking(false)
     this.isPlaying = false
     this.currentSequenceId = null
     this.stopCurrentExecution = null
@@ -213,13 +215,35 @@ class MascotAudioDirector {
       case 'mp3':
         await new Promise<void>((resolve) => {
           const audio = new Audio(step.url)
-          audio.onended = () => resolve()
-          audio.onerror = () => resolve() // fail gracefully
-          if (isCancelled()) {
+          let resolved = false
+          
+          const cleanup = () => {
+            if (resolved) return
+            resolved = true
+            audio.pause()
+            audio.currentTime = 0
+            audio.onended = null
+            audio.onerror = null
             resolve()
-            return
           }
-          audio.play().catch(() => resolve())
+
+          audio.onended = cleanup
+          audio.onerror = cleanup
+          
+          if (isCancelled()) return cleanup()
+          
+          // Poll for cancellation during playback
+          const interval = setInterval(() => {
+            if (isCancelled()) {
+              clearInterval(interval)
+              cleanup()
+            }
+          }, 100)
+
+          audio.play().catch(() => {
+            clearInterval(interval)
+            cleanup()
+          })
         })
         break
 

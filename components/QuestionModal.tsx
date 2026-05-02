@@ -48,7 +48,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
   const q = sq.question
   const diff = DIFF[q.difficulty] ?? DIFF.easy
   const activeTeam = teams[store.currentTeamIndex]
-  const teamColor = activeTeam?.color || '#8B5CF6'
+  const [teamColor] = useState(activeTeam?.color || '#8B5CF6')
   const categoryName = store.categories?.find(c =>
     c.id === (sq as any).category_id || c.id === q.category_id
   )?.name || ''
@@ -102,11 +102,9 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
       }
       if (!spokenText) {
         const pool = isActiveTeam ? answerPhrases.correct : answerPhrases.wrong
-        spokenText = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : getRandomHumor(isActiveTeam ? 'correct' : 'punishment')
+        spokenText = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : getRandomHumor(isActiveTeam ? 'correct' : 'wrong')
       }
       setHumorType(isActiveTeam ? 'correct' : 'wrong')
-      await gameEngine.updateTeamScore(team.id, points)
-      store.updateScore(team.id, (team.score || 0) + points)
     } else {
       teams.forEach(t => store.updateStreak(t.id, true))
       if (Math.random() < 0.7) spokenText = (triggerReaction('wrong') as string) || ''
@@ -118,13 +116,40 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
     }
 
     setHumorMessage(spokenText)
-    store.markQuestionUsed(sq.id)
-    await gameEngine.markQuestionUsed(sq.id)
 
-    const unUsed = store.sessionQuestions.filter(q => !q.used).length
-    if (unUsed === 1) {
-      const winner = [...store.teams].sort((a, b) => b.score - a.score)[0]
-      setEndGameColor(winner.color)
+    // ── MARK QUESTION USED (sync local, then async DB) ──
+    store.markQuestionUsed(sq.id)
+
+    // ── ADVANCE TURN NOW (sync, before any awaits) ──
+    // Use getState() for guaranteed fresh values — not the stale closure
+    const liveStore = useGameStore.getState()
+    const totalTeams = liveStore.teams.length
+    const nextTeam = totalTeams > 0 ? (liveStore.currentTeamIndex + 1) % totalTeams : 0
+    liveStore.setCurrentTeam(nextTeam)
+
+    // Check end-of-game (use fresh state after marking used)
+    const liveQuestions = liveStore.sessionQuestions
+    const remaining = liveQuestions.filter(q => !q.used).length
+    const isLastQuestion = remaining === 0
+
+    // ── ASYNC NETWORK OPS (fire-and-forget after state is already updated) ──
+    if (team) {
+      gameEngine.updateTeamScore(team.id, points)
+        .then(() => store.updateScore(team.id, (team.score || 0) + points))
+        .catch(() => console.warn('Network issue updating team score'))
+    }
+
+    gameEngine.markQuestionUsed(sq.id)
+      .catch(() => console.warn('Network issue marking question used'))
+
+    if (liveStore.sessionId) {
+      gameEngine.updateSessionTurn(liveStore.sessionId, nextTeam)
+        .catch(() => console.warn('Network issue updating turn'))
+    }
+
+    if (isLastQuestion) {
+      const winner = [...liveStore.teams].sort((a, b) => b.score - a.score)[0]
+      setEndGameColor(winner?.color || '#fff')
       setTimeout(() => onClose(), 900)
     }
   }, [awarded, activeTeam, store, teams, triggerReaction, answerPhrases, points, sq.id, onClose])
@@ -239,12 +264,12 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
         </div>
 
         {/* ── MASCOT ── */}
-        <div className="flex justify-center pt-4 pb-2 shrink-0">
-          <Mascot state={store.mascotState as any} size={72} isTalking={store.isTalking} color={teamColor} />
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <Mascot state={store.mascotState as any} size={64} isTalking={store.isTalking} color={teamColor} />
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-5">
+        <div className="flex-1 px-6 pb-6 flex flex-col gap-4">
 
           {/* Question */}
           <div className="text-center px-2">
@@ -300,7 +325,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                 className="flex flex-col gap-5">
 
                 {/* Answer box */}
-                <div className="rounded-2xl p-5 text-center"
+                <div className="rounded-2xl p-4 text-center"
                   style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.22)' }}>
                   <p className="text-xs font-bold uppercase tracking-widest mb-3 text-emerald-500/60">الإجابة الصحيحة</p>
                   <motion.p initial={{ scale: 0.85 }} animate={{ scale: 1 }}
@@ -340,7 +365,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                         <motion.button key={team.id}
                           whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}
                           onClick={() => finishQuestion(team)}
-                          className="py-4 px-4 rounded-2xl font-black text-xl transition-all relative overflow-hidden group"
+                          className="py-3 px-3 rounded-2xl font-black text-xl transition-all relative overflow-hidden group"
                           style={{
                             background: `${team.color}12`,
                             border: `2px solid ${team.color}35`,
@@ -361,7 +386,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
 
                     {/* No one button */}
                     <button onClick={() => finishQuestion(null)}
-                      className="w-full py-3.5 rounded-2xl font-bold text-base transition-all hover:scale-[1.01] active:scale-[0.99]"
+                      className="w-full py-3 rounded-2xl font-bold text-base transition-all hover:scale-[1.01] active:scale-[0.99]"
                       style={{
                         background: 'rgba(239,68,68,0.08)',
                         color: '#f87171',

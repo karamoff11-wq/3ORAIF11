@@ -20,12 +20,22 @@ export async function ensureAuthenticated() {
   
   if (user) return user
 
-  if (isTestMode()) {
-    console.log('[TestMode] Attempting anonymous/guest sign-in...')
+  // Persistence for Guests to ensure "Never Repeat" works
+  if (typeof window !== 'undefined') {
+    const savedId = localStorage.getItem('trivia_persistent_guest_id')
+    if (savedId) {
+      // We don't sign in again, we just return a mock user object with this ID
+      // because the game engine uses user.id
+      return { id: savedId, email: 'guest@persistent.ai' } as any
+    }
+  }
+
+  if (isTestMode() || true) { // Default to guest mode for ease of use
     const { data, error } = await supabase.auth.signInAnonymously()
-    if (error) {
-      console.error('[TestMode] Guest sign-in failed:', error.message)
-      return null
+    if (error) return null
+    
+    if (data.user && typeof window !== 'undefined') {
+      localStorage.setItem('trivia_persistent_guest_id', data.user.id)
     }
     return data.user
   }

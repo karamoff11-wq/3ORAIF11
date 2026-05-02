@@ -118,10 +118,7 @@ export default function FightingParticles({ teams, mode = 'game' }: FightingPart
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
         ctx.fillStyle = p.color
-        ctx.shadowBlur = p.radius * 5
-        ctx.shadowColor = p.color
         ctx.fill()
-        ctx.shadowBlur = 0
       }
 
       stateRef.current.animId = requestAnimationFrame(draw)

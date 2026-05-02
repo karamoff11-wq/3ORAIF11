@@ -290,9 +290,9 @@ export default function GameSetupPage() {
         onClick={() => {
           if (!containerRef.current) return
           if (isOnTeamsSection || isAtBottom) {
-            containerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+            scrollToSection(0)
           } else {
-            containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
+            scrollToSection(activeIndex + 1)
           }
         }}
         className="fixed left-8 bottom-8 z-50 w-12 h-12 rounded-full bg-black/80 border border-white/20 text-white/80 flex items-center justify-center hover:bg-white/10 hover:scale-110 active:scale-95 transition-all shadow-xl"
@@ -306,7 +306,7 @@ export default function GameSetupPage() {
       {/* ── Scroll Container ── */}
       <div
         ref={containerRef}
-        className="w-full h-full overflow-y-auto hide-scrollbar"
+        className="w-full h-full overflow-y-auto hide-scrollbar relative"
       >
 
         {/* ── Section 0: Hero & Search ── */}
