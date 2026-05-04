@@ -129,7 +129,7 @@ export const gameEngine = {
       .select('id')
       .eq('host_id', hostId)
     
-    const sessionIds = userSessions?.map(s => s.id) || []
+    const sessionIds = userSessions?.map((s: any) => s.id) || []
     
     let globallyUsedIds = new Set<string>()
     let globallyUsedTexts = new Set<string>()
@@ -215,9 +215,9 @@ export const gameEngine = {
         const maxAttempts = 3
         
         while (attempts < maxAttempts) {
-          const easyNeeded = Math.max(0, neededPerDiff - unusedPool.filter(q => q.difficulty === 'easy').length)
-          const medNeeded = Math.max(0, neededPerDiff - unusedPool.filter(q => q.difficulty === 'medium').length)
-          const hardNeeded = Math.max(0, neededPerDiff - unusedPool.filter(q => q.difficulty === 'hard').length)
+          const easyNeeded = Math.max(0, neededPerDiff - unusedPool.filter((q: any) => q.difficulty === 'easy').length)
+          const medNeeded = Math.max(0, neededPerDiff - unusedPool.filter((q: any) => q.difficulty === 'medium').length)
+          const hardNeeded = Math.max(0, neededPerDiff - unusedPool.filter((q: any) => q.difficulty === 'hard').length)
           
           if (easyNeeded === 0 && medNeeded === 0 && hardNeeded === 0 && attempts > 0) break;
 
@@ -266,7 +266,7 @@ export const gameEngine = {
             console.warn(`AI attempt ${attempts + 1} failed:`, err)
           }
           attempts++
-          const stillMissing = difficulties.some(d => unusedPool.filter(q => q.difficulty === d).length < neededPerDiff)
+          const stillMissing = difficulties.some(d => unusedPool.filter((q: any) => q.difficulty === d).length < neededPerDiff)
           if (!stillMissing) break;
         }
 
@@ -290,7 +290,7 @@ export const gameEngine = {
           
           if (fallbackQuestions) {
             fallbackQuestions.forEach((q: any) => {
-              if (!unusedPool.find(p => p.id === q.id)) {
+              if (!unusedPool.find((p: any) => p.id === q.id)) {
                 unusedPool.push({ ...q, isFallback: true })
               }
             })
@@ -298,7 +298,7 @@ export const gameEngine = {
         }
 
         // Final shuffle: Prioritize 'isNew', then everything else
-        const shuffled = unusedPool.sort((a, b) => {
+        const shuffled = unusedPool.sort((a: any, b: any) => {
           if (a.isNew && !b.isNew) return -1
           if (!a.isNew && b.isNew) return 1
           if (a.isFallback && !b.isFallback) return 1 // Fallbacks go last

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Toaster } from 'react-hot-toast'
-import ParticleField from '@/components/ParticleField'
+import AppWrapper from '@/components/AppWrapper'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -40,30 +40,21 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
       </head>
-      <body className="bg-loud noise" suppressHydrationWarning>
-        {children}
+      <body className="antialiased" suppressHydrationWarning>
+        <AppWrapper>
+          {children}
+        </AppWrapper>
         <Toaster
           position="top-center"
           toastOptions={{
             style: {
-              background: 'var(--color-surface-2)',
-              color: 'var(--color-text-primary)',
-              border: '1px solid var(--color-border)',
-              fontFamily: 'var(--font-body)',
-              direction: 'rtl',
-            },
-            success: {
-              iconTheme: {
-                primary: '#10b981',
-                secondary: 'white',
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: 'white',
-              },
+              background: 'rgba(15, 15, 45, 0.9)',
+              color: 'white',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backdropFilter: 'blur(16px)',
+              borderRadius: '20px',
             },
           }}
         />

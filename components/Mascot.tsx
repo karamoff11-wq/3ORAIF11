@@ -50,6 +50,7 @@ export default function Mascot({
     thinking:   { x: [0, -4, 0], y: [0, -3, 0], transition: { duration: 2.2, repeat: Infinity } },
     hype:       { y: [0, -24, 0], scale: [1, 1.1, 1], transition: { duration: 0.38, repeat: Infinity } },
     angry:      { scale: [1, 1.05, 1], y: [0, -2, 0], transition: { duration: 0.22, repeat: Infinity, repeatType: 'mirror' as any } },
+    sad:        { y: [0, 4, 0], opacity: 0.8, transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' } },
   }
 
 
@@ -61,6 +62,7 @@ export default function Mascot({
     thinking:   { y: [-1, 2, -1], rotate: [-3, 3, -3], transition: { repeat: Infinity, duration: 2 } },
     hype:       { y: -7, rotate: 0 },
     angry:      { y: 4, rotate: 18 },
+    sad:        { y: 2, rotate: -10 },
   }
 
   // Limb / feature stroke color — always near-black for minimalist doodle look
@@ -139,6 +141,12 @@ export default function Mascot({
             <path d="M75 102 Q84 106 93 102" stroke={INK} strokeWidth="4" strokeLinecap="round" fill="none" />
             <circle cx="116" cy="100" r="6" fill={INK} />
           </>
+        ) : state === 'sad' ? (
+          /* Downward squint/sad eyes */
+          <>
+            <path d="M76 104 Q85 110 94 104" stroke={INK} strokeWidth="3" strokeLinecap="round" fill="none" />
+            <path d="M106 104 Q115 110 124 104" stroke={INK} strokeWidth="3" strokeLinecap="round" fill="none" />
+          </>
         ) : (
           /* Normal dots with blink */
           <>
@@ -183,6 +191,8 @@ export default function Mascot({
           <line x1="85" y1="127" x2="115" y2="127" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
         ) : state === 'thinking' ? (
           <circle cx="100" cy="126" r="5" stroke={INK} strokeWidth="3" fill="none" />
+        ) : state === 'sad' ? (
+          <path d="M90 134 Q100 126 110 134" stroke={INK} strokeWidth="2.5" strokeLinecap="round" fill="none" />
         ) : (
           <path d="M86 124 Q100 134 114 124" stroke={INK} strokeWidth="3.5" strokeLinecap="round" fill="none" />
         )}

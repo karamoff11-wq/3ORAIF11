@@ -4,7 +4,7 @@ export type GameMode = 'local' | 'remote'
 export type SessionState = 'lobby' | 'playing' | 'finished'
 export type Difficulty = 'easy' | 'medium' | 'hard'
 export type GamePhase = 'lobby' | 'playing' | 'reveal' | 'finished'
-export type MascotState = 'idle' | 'correct' | 'wrong' | 'punishment' | 'thinking' | 'hype' | 'angry'
+export type MascotState = 'idle' | 'correct' | 'wrong' | 'punishment' | 'thinking' | 'hype' | 'angry' | 'sad'
 
 export interface Session {
   id: string

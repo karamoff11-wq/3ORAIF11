@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
     // Map to the format expected by generateSession
     const categoriesForAI = categoryIds.map(id => {
-      const cat = resolvedCats.find(c => c.id === id)
+      const cat = resolvedCats.find((c: any) => c.id === id)
       return {
         id: id,
         name: cat?.name || 'فئة عامة',

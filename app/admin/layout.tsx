@@ -5,15 +5,21 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 
-const NAV = [
-  { href: '/admin',            label: 'الرئيسية',     icon: '📊' },
-  { href: '/admin/topics',     label: 'المواضيع',     icon: '📂' },
-  { href: '/admin/categories', label: 'الفئات',       icon: '📚' },
+const NAV_MAIN = [
+  { href: '/admin',            label: 'الرئيسية',          icon: '📊' },
+  { href: '/admin/topics',     label: 'المواضيع',          icon: '📂' },
+  { href: '/admin/categories', label: 'الفئات',            icon: '📚' },
   { href: '/admin/generator',  label: 'مولد الأسئلة آلياً', icon: '🤖' },
-  { href: '/admin/questions',  label: 'الأسئلة',      icon: '❓' },
-  { href: '/admin/sessions',   label: 'الجلسات',      icon: '🎮' },
+  { href: '/admin/questions',  label: 'الأسئلة',           icon: '❓' },
+  { href: '/admin/sessions',   label: 'الجلسات',           icon: '🎮' },
   { href: '/admin/mascot',     label: 'شخصية أبو العُريف', icon: '🧞' },
-  { href: '/admin/scoring',    label: 'إعدادات النقاط', icon: '⚙️' },
+  { href: '/admin/scoring',    label: 'إعدادات النقاط',    icon: '⚙️' },
+]
+
+const NAV_CUSTOMIZE = [
+  { href: '/admin/appearance', label: 'المظهر والألوان',       icon: '🎨' },
+  { href: '/admin/landing',    label: 'الصفحة الرئيسية',      icon: '🏠' },
+  { href: '/admin/game-ui',    label: 'واجهة اللعبة',          icon: '🕹️' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -77,7 +83,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 px-3 space-y-1">
-          {NAV.map(({ href, label, icon }) => {
+          {NAV_MAIN.map(({ href, label, icon }) => {
             const active = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
             return (
               <Link key={href} href={href}
@@ -91,6 +97,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span className="text-base">{icon}</span>
                 <span>{label}</span>
                 {active && <div className="mr-auto w-1.5 h-1.5 rounded-full bg-[#c4b5fd]" />}
+              </Link>
+            )
+          })}
+
+          {/* Customize Section */}
+          <div className="pt-4 pb-1 px-4">
+            <p className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: 'var(--color-text-muted)' }}>
+              تخصيص
+            </p>
+          </div>
+
+          {NAV_CUSTOMIZE.map(({ href, label, icon }) => {
+            const active = pathname.startsWith(href)
+            return (
+              <Link key={href} href={href}
+                className="flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all text-sm font-semibold"
+                style={{
+                  background: active ? 'rgba(245,158,11,0.12)' : 'transparent',
+                  color: active ? '#fcd34d' : 'var(--color-text-secondary)',
+                  border: active ? '1px solid rgba(245,158,11,0.2)' : '1px solid transparent',
+                  boxShadow: active ? '0 0 12px rgba(245,158,11,0.08)' : 'none',
+                }}>
+                <span className="text-base">{icon}</span>
+                <span>{label}</span>
+                {active && <div className="mr-auto w-1.5 h-1.5 rounded-full bg-[#fcd34d]" />}
               </Link>
             )
           })}

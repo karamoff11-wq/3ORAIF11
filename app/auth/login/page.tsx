@@ -1,276 +1,125 @@
 'use client'
 
-import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import React, { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabaseClient'
-import toast from 'react-hot-toast'
+import { toast } from 'react-hot-toast'
+import { useFeedbackStore } from '@/store/feedbackStore'
 
-function LoginForm() {
+// ── Components ──
+const Logo = ({ className = "w-8 h-8" }: { className?: string }) => {
+  const { logoUrl } = useFeedbackStore()
+  return logoUrl ? (
+    <img src={logoUrl} alt="Logo" className={`${className} object-contain`} />
+  ) : (
+    <div className={`${className} rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-black text-white`}>A</div>
+  )
+}
+
+const LiveBackground = ({ accentColor }: { accentColor: string }) => (
+  <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+    <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.15, 0.1] }} transition={{ duration: 15, repeat: Infinity }}
+      className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full blur-[140px]"
+      style={{ background: `radial-gradient(circle, ${accentColor} 0%, transparent 70%)` }} />
+    <motion.div animate={{ scale: [1.2, 1, 1.2], opacity: [0.05, 0.1, 0.05] }} transition={{ duration: 18, repeat: Infinity }}
+      className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[140px]"
+      style={{ background: `radial-gradient(circle, #EC4899 0%, transparent 70%)` }} />
+  </div>
+)
+
+const SmartInput = ({ label, value, onChange, type = 'text', placeholder, showToggle, toggleAction }: any) => (
+  <div className="relative group">
+    <div className="flex items-center justify-between mb-1.5 px-1">
+      <label className="text-[10px] font-black uppercase tracking-widest text-white/20 group-focus-within:text-white/40 transition-colors">{label}</label>
+    </div>
+    <div className="relative">
+      <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+        className="w-full bg-white/[0.03] border border-white/8 rounded-2xl px-6 py-3.5 text-sm font-bold text-white focus:outline-none focus:border-white/20 focus:bg-white/[0.05] transition-all"
+        style={{ direction: 'ltr' }} />
+      {showToggle && (
+        <button type="button" onClick={toggleAction} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white transition-all z-20">
+          {showToggle}
+        </button>
+      )}
+    </div>
+  </div>
+)
+
+export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectedFrom') || '/dashboard'
-  const [email, setEmail] = useState('')
+  const { accentColor } = useFeedbackStore()
+  
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [showPw, setShowPw]     = useState(false)
+  const [loading, setLoading]   = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { toast.error(error.message); setLoading(false); return }
-    toast.success('مرحباً بعودتك! 👋')
-    router.push(redirectTo)
-    router.refresh()
-  }
 
-  const inputStyle = {
-    width: '100%',
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 14,
-    padding: '14px 18px',
-    color: '#fff',
-    fontSize: '0.95rem',
-    outline: 'none',
-    transition: 'all 0.2s',
-    fontFamily: 'inherit',
-    direction: 'ltr' as const,
-    textAlign: 'left' as const,
+    if (error) {
+      toast.error(error.message)
+      setLoading(false)
+      return
+    }
+
+    toast.success('مرحباً بك مجدداً! 👋')
+    setTimeout(() => router.push('/dashboard'), 1000)
   }
 
   return (
-    <form onSubmit={handleLogin} className="space-y-5">
-      {/* Email */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-bold uppercase tracking-widest text-white/40">البريد الإلكتروني</label>
-          <span className="text-white/20 text-sm">✉️</span>
-        </div>
-        <input
-          id="email" type="email" placeholder="example@email.com"
-          value={email} onChange={e => setEmail(e.target.value)} required
-          style={inputStyle}
-          onFocus={e => { e.target.style.border = '1px solid rgba(139,92,246,0.6)'; e.target.style.boxShadow = '0 0 0 4px rgba(139,92,246,0.12)' }}
-          onBlur={e => { e.target.style.border = '1px solid rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none' }}
-        />
-      </div>
+    <div className="h-screen w-full bg-[#050510] text-white flex flex-col relative overflow-hidden"
+      style={{ direction: 'rtl', fontFamily: "'Cairo', sans-serif" }}>
+      
+      <LiveBackground accentColor={accentColor} />
 
-      {/* Password */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-bold uppercase tracking-widest text-white/40">كلمة المرور</label>
-          <span className="text-white/20 text-sm">🔒</span>
-        </div>
-        <div className="relative">
-          <input
-            id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••"
-            value={password} onChange={e => setPassword(e.target.value)} required
-            style={{ ...inputStyle, paddingLeft: 48 }}
-            onFocus={e => { e.target.style.border = '1px solid rgba(139,92,246,0.6)'; e.target.style.boxShadow = '0 0 0 4px rgba(139,92,246,0.12)' }}
-            onBlur={e => { e.target.style.border = '1px solid rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none' }}
-          />
-          <button type="button" onClick={() => setShowPassword(p => !p)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-sm">
-            {showPassword ? '🙈' : '👁️'}
-          </button>
-        </div>
-      </div>
-
-      {/* Remember + Forgot */}
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <div
-            onClick={() => setRemember(r => !r)}
-            className="w-5 h-5 rounded flex items-center justify-center transition-all cursor-pointer"
-            style={{ background: remember ? 'linear-gradient(135deg,#8B5CF6,#EC4899)' : 'rgba(255,255,255,0.06)', border: remember ? 'none' : '1px solid rgba(255,255,255,0.1)' }}
-          >
-            {remember && <span className="text-xs text-white">✓</span>}
-          </div>
-          <span className="text-sm text-white/40">تذكّرني</span>
-        </label>
-        <a href="#" className="text-sm font-bold" style={{ color: '#F59E0B' }}>نسيت كلمة المرور؟</a>
-      </div>
-
-      {/* Submit */}
-      <motion.button
-        type="submit" id="login-submit-btn" disabled={loading}
-        whileTap={{ scale: 0.97 }}
-        className="w-full py-4 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3"
-        style={{ background: 'linear-gradient(135deg,#8B5CF6,#EC4899)', boxShadow: '0 8px 32px rgba(139,92,246,0.45)', opacity: loading ? 0.7 : 1 }}
-      >
-        {loading ? (
-          <>
-            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <span>جاري الدخول...</span>
-          </>
-        ) : (
-          <><span>تسجيل الدخول</span><span>🚀</span></>
-        )}
-      </motion.button>
-
-      {/* Divider */}
-      <div className="flex items-center gap-3 my-2">
-        <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <span className="text-xs text-white/20 font-mono tracking-widest">أو تابع باستخدام</span>
-        <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
-      </div>
-
-      {/* Social */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'جوجل', icon: '🌐', color: '#EA4335' },
-          { label: 'أبل', icon: '🍎', color: '#fff' },
-          { label: 'فيسبوك', icon: '📘', color: '#1877F2' },
-        ].map(s => (
-          <button key={s.label} type="button"
-            className="py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.04] hover:-translate-y-0.5"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)' }}
-          >
-            <span>{s.icon}</span>
-            <span>{s.label}</span>
-          </button>
-        ))}
-      </div>
-    </form>
-  )
-}
-
-const floatingIcons = [
-  { icon: '🎯', x: '8%', y: '25%', color: '#8B5CF6', size: 64, delay: 0 },
-  { icon: '🛡️', x: '5%', y: '60%', color: '#3B82F6', size: 60, delay: 0.5 },
-  { icon: '🏆', x: '88%', y: '20%', color: '#F59E0B', size: 68, delay: 0.3 },
-  { icon: '🎮', x: '91%', y: '60%', color: '#EC4899', size: 62, delay: 0.8 },
-]
-
-const trustBadges = [
-  { icon: '🛡️', label: 'أمن وموثوق', sub: 'حماية عالية لبياناتك' },
-  { icon: '⚡', label: 'دخول سريع', sub: 'تجربة دخول سلسة وسريعة' },
-  { icon: '🏆', label: 'تقدم مستمر', sub: 'احفظ تقدمك وبياناتك دائماً' },
-  { icon: '👤', label: 'حسابك، تجربتك', sub: 'خصص تجربتك كما تحب' },
-]
-
-export default function LoginPage() {
-  return (
-    <div
-      className="min-h-screen relative overflow-hidden flex flex-col"
-      style={{ background: '#07071A', direction: 'rtl', fontFamily: "'Cairo','Tajawal',sans-serif" }}
-    >
-      {/* ── Background layers ── */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        {/* Purple glow left */}
-        <div className="absolute rounded-full" style={{ width: '60vw', height: '60vw', top: '-10%', right: '-10%', background: 'radial-gradient(circle, rgba(139,92,246,0.22) 0%, transparent 65%)', filter: 'blur(60px)' }} />
-        {/* Orange glow right */}
-        <div className="absolute rounded-full" style={{ width: '40vw', height: '40vw', bottom: '-5%', left: '-5%', background: 'radial-gradient(circle, rgba(245,158,11,0.18) 0%, transparent 65%)', filter: 'blur(60px)' }} />
-        {/* Pink mid */}
-        <div className="absolute rounded-full" style={{ width: '30vw', height: '30vw', top: '50%', left: '40%', background: 'radial-gradient(circle, rgba(236,72,153,0.1) 0%, transparent 70%)', filter: 'blur(80px)' }} />
-        {/* Grid */}
-        <div className="absolute inset-0 opacity-[0.025]" style={{ backgroundImage: 'linear-gradient(rgba(139,92,246,0.6) 1px, transparent 1px), linear-gradient(90deg,rgba(139,92,246,0.6) 1px,transparent 1px)', backgroundSize: '50px 50px' }} />
-        {/* Orbital ring */}
-        <div className="absolute rounded-full border" style={{ width: '70vw', height: '70vw', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', borderColor: 'rgba(139,92,246,0.06)', animation: 'spin-slow 40s linear infinite' }} />
-        <div className="absolute rounded-full border" style={{ width: '85vw', height: '85vw', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', borderColor: 'rgba(236,72,153,0.04)', animation: 'spin-slow 60s linear infinite reverse' }} />
-      </div>
-
-      {/* ── Floating Icons ── */}
-      {floatingIcons.map((f, i) => (
-        <motion.div
-          key={i}
-          className="fixed z-10 flex items-center justify-center rounded-2xl pointer-events-none"
-          style={{ left: f.x, top: f.y, width: f.size, height: f.size, background: `${f.color}20`, border: `1px solid ${f.color}35`, backdropFilter: 'blur(12px)', boxShadow: `0 0 30px ${f.color}25`, fontSize: f.size * 0.45 }}
-          animate={{ y: [0, -14, 0] }}
-          transition={{ repeat: Infinity, duration: 4 + i * 0.8, delay: f.delay, ease: 'easeInOut' }}
-        >
-          {f.icon}
-        </motion.div>
-      ))}
-
-      {/* ── Nav ── */}
-      <nav className="relative z-20 flex items-center justify-between px-6 md:px-14 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', background: 'rgba(7,7,26,0.5)' }}>
+      <nav className="relative z-50 flex items-center justify-between px-10 py-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base" style={{ background: 'linear-gradient(135deg,#8B5CF6,#3B82F6)' }}>🎮</div>
-          <span className="font-black text-xl tracking-tight text-white">الغُريف</span>
+          <Logo className="w-10 h-10" />
+          <span className="text-xl font-black tracking-tight">العُريف</span>
         </div>
-        <div className="hidden lg:flex items-center gap-7 text-sm text-white/30">
-          {['الرئيسية','الألعاب','التحديات','لوحة المتصدرين','المهام اليومية','المتجر'].map(l => (
-            <a key={l} href="#" className="hover:text-white transition-colors">{l}</a>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="px-4 py-2 rounded-xl text-sm text-white/50 hover:text-white border border-white/8 hover:border-white/20 transition-all flex items-center gap-2">
-            <span>الوضع الداكن</span><span>🌙</span>
-          </button>
-          <Link href="/auth/register" className="px-5 py-2 rounded-xl text-sm font-bold border border-white/10 hover:border-white/25 hover:bg-white/5 text-white/70 hover:text-white transition-all flex items-center gap-2">
-            <span>إنشاء حساب</span><span>➕</span>
-          </Link>
-        </div>
+        <Link href="/auth/register" className="px-6 py-2 rounded-xl text-xs font-bold text-white/40 border border-white/10 hover:text-white hover:bg-white/5 transition-all">إنشاء حساب جديد</Link>
       </nav>
 
-      {/* ── Main content ── */}
-      <div className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 30, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-md"
-        >
-          {/* Logo & Title */}
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.1, type: 'spring', stiffness: 250 }}
-              className="inline-flex items-center justify-center w-20 h-20 rounded-3xl text-4xl mb-5 mx-auto"
-              style={{ background: 'linear-gradient(135deg,#8B5CF6,#3B82F6,#EC4899)', boxShadow: '0 12px 40px rgba(139,92,246,0.5)' }}
-            >
-              🎯
-            </motion.div>
-            <h1 className="text-3xl font-black tracking-tight text-white mb-2">الغُريف</h1>
-            <p className="text-sm text-white/35">سجّل دخولك للمتابعة</p>
+      <div className="relative z-40 flex-1 flex items-center justify-center px-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md bg-white/[0.02] backdrop-blur-3xl border border-white/10 rounded-[40px] p-10 md:p-12 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+          
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-black mb-2 tracking-tight">مرحباً بك مجدداً</h1>
+            <p className="text-white/20 text-sm font-medium">سجل دخولك لمتابعة مغامرتك</p>
           </div>
 
-          {/* Card */}
-          <div className="rounded-3xl p-7 border" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(30px)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 24px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
-            <Suspense fallback={
-              <div className="flex justify-center py-12">
-                <span className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            }>
-              <LoginForm />
-            </Suspense>
-          </div>
-
-          {/* Register link */}
-          <p className="text-center text-sm text-white/30 mt-6">
-            ليس لديك حساب؟{' '}
-            <Link href="/auth/register" className="font-bold transition-colors" style={{ color: '#A78BFA' }}>
-              إنشاء حساب جديد ←
-            </Link>
-          </p>
-        </motion.div>
-
-        {/* ── Trust Badges ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.6 }}
-          className="w-full max-w-2xl mt-10 grid grid-cols-2 md:grid-cols-4 gap-3"
-        >
-          {trustBadges.map((b, i) => (
-            <div key={i} className="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border text-center" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.05)' }}>
-              <span className="text-xl">{b.icon}</span>
-              <span className="text-xs font-bold text-white/70">{b.label}</span>
-              <span className="text-[10px] text-white/25 leading-tight">{b.sub}</span>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <SmartInput label="البريد الإلكتروني" value={email} onChange={(e:any) => setEmail(e.target.value)} placeholder="name@example.com" />
+            <SmartInput label="كلمة المرور" value={password} onChange={(e:any) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" showToggle={showPw ? '🙈' : '👁️'} toggleAction={() => setShowPw(!showPw)} />
+            
+            <div className="flex items-center justify-end">
+              <button type="button" className="text-xs font-bold text-white/20 hover:text-white transition-colors">نسيت كلمة المرور؟</button>
             </div>
-          ))}
+
+            <motion.button type="submit" disabled={loading} whileTap={{ scale: 0.96 }}
+              className="w-full py-4.5 rounded-2xl font-black text-base transition-all flex items-center justify-center gap-3 shadow-[0_20px_40px_rgba(0,0,0,0.3)] relative overflow-hidden group"
+              style={{ background: `linear-gradient(135deg,${accentColor},#EC4899)`, opacity: loading ? 0.8 : 1 }}>
+              {loading ? (
+                <span className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span className="relative z-10">تسجيل الدخول</span>
+              )}
+            </motion.button>
+          </form>
+
+          <div className="mt-10 pt-8 border-t border-white/5 text-center">
+            <p className="text-xs text-white/20">ليس لديك حساب؟ <Link href="/auth/register" className="text-purple-400 font-black hover:underline">اشترك الآن</Link></p>
+          </div>
         </motion.div>
       </div>
-
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&display=swap');
-        @keyframes spin-slow { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
-      `}</style>
     </div>
   )
 }
