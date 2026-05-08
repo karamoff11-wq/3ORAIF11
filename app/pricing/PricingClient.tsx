@@ -7,48 +7,29 @@ import { useMemo, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import { PADDLE_CONFIG, getPriceId, type PlanType } from '@/lib/paddle'
 import { usePlan } from '@/hooks/usePlan'
-
-// ── Declare Paddle global (loaded via script tag) ──
-declare global {
-  interface Window {
-    Paddle?: {
-      Environment: { set: (env: string) => void }
-      Initialize: (opts: { token: string }) => void
-      Checkout: {
-        open: (opts: {
-          items: Array<{ priceId: string; quantity: number }>
-          customData?: Record<string, string>
-          successUrl?: string
-        }) => void
-      }
-    }
-  }
-}
+import { initializePaddle, type Paddle } from '@paddle/paddle-js'
 
 export default function PricingClient() {
   const t = useTranslator()
   const { plan: currentPlan, loading: planLoading } = usePlan()
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
-  const [paddleReady, setPaddleReady]         = useState(false)
+  const [paddle, setPaddle]               = useState<Paddle | null>(null)
   const [userId, setUserId]                   = useState<string | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
 
   // ── Load Paddle.js SDK ──
   useEffect(() => {
-    if (window.Paddle) { setPaddleReady(true); return }
-    const script = document.createElement('script')
-    script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js'
-    script.async = true
-    script.onload = () => {
-      if (window.Paddle) {
-        window.Paddle.Environment.set(PADDLE_CONFIG.environment)
-        window.Paddle.Initialize({ token: PADDLE_CONFIG.clientToken })
-        setPaddleReady(true)
+    initializePaddle({ 
+      environment: PADDLE_CONFIG.environment, 
+      token: PADDLE_CONFIG.clientToken 
+    }).then((paddleInstance) => {
+      if (paddleInstance) {
+        setPaddle(paddleInstance)
       }
-    }
-    document.head.appendChild(script)
+    })
   }, [])
+
 
   // ── Get current user ID for Paddle custom_data ──
   useEffect(() => {
@@ -57,7 +38,7 @@ export default function PricingClient() {
 
   // ── Launch Paddle Checkout ──
   async function handleCheckout(planId: 'pro' | 'team') {
-    if (!paddleReady || !window.Paddle) {
+    if (!paddle) {
       alert('Payment system is loading. Please try again in a second.')
       return
     }
@@ -74,10 +55,12 @@ export default function PricingClient() {
 
     setCheckoutLoading(planId)
     try {
-      window.Paddle.Checkout.open({
+      paddle.Checkout.open({
         items: [{ priceId, quantity: 1 }],
         customData: { user_id: userId },
-        successUrl: `${window.location.origin}/dashboard?upgrade=success`,
+        settings: {
+          successUrl: `${window.location.origin}/dashboard?upgrade=success`,
+        }
       })
     } catch (err) {
       console.error('[Paddle] Checkout error:', err)
@@ -85,6 +68,7 @@ export default function PricingClient() {
       setCheckoutLoading(null)
     }
   }
+
 
   const PLANS = [
     {
