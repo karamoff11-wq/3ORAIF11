@@ -10,6 +10,7 @@ import { ensureAuthenticated } from '@/lib/testMode'
 import { Database } from '@/types/database'
 import { useFeedbackStore } from '@/store/feedbackStore'
 import { useTranslator } from '@/lib/i18n'
+import { track, identifyUser, resetAnalytics } from '@/lib/analytics'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 type Lang = 'AR' | 'EN'
@@ -614,7 +615,11 @@ export default function DashboardPage() {
       if (!user) { router.push('/auth/login'); return }
       try {
         const { data } = await (supabase.from('profiles') as any).select('*').eq('id', user.id).single()
-        if (data) { setProfile(data) }
+        if (data) {
+          setProfile(data)
+          // Identify user in PostHog for funnel analysis
+          identifyUser(user.id, { email: user.email, plan_type: data.plan_type ?? 'free', created_at: data.created_at })
+        }
       } catch (e) { console.error(e) }
     }
     load()
@@ -627,6 +632,7 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/login'); return }
       const session = await gameEngine.createSession(user.id, mode)
+      track('session_created', { mode, user_id: user.id })
       router.push(`/game/setup/${session.id}`)
     } catch (e: any) {
       toast.error(e.message)
@@ -637,6 +643,7 @@ export default function DashboardPage() {
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut()
+    resetAnalytics()
     router.push('/')
     toast.success(t('dash_logout_toast'))
   }, [supabase, router, t])

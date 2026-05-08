@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Toaster } from 'react-hot-toast'
 import AppWrapper from '@/components/AppWrapper'
 import GlobalControls from '@/components/GlobalControls'
+import { PostHogProvider } from '@/components/PostHogProvider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -84,10 +85,12 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased" suppressHydrationWarning>
-        <AppWrapper>
-          {children}
-          <GlobalControls />
-        </AppWrapper>
+        <PostHogProvider>
+          <AppWrapper>
+            {children}
+            <GlobalControls />
+          </AppWrapper>
+        </PostHogProvider>
         <Toaster
           position="top-center"
           toastOptions={{

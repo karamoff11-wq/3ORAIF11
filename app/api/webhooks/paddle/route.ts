@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabaseServer'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { sendProConfirmationEmail } from '@/lib/email'
 
 // ── Paddle Webhook Handler ──────────────────────────────────────────
 // Receives events from Paddle and updates the user's plan in Supabase
@@ -109,6 +110,18 @@ export async function POST(request: NextRequest) {
       .eq('id', userId)
 
     console.log(`[Paddle] Updated user ${userId} to plan: ${planType} (${status})`)
+
+    // Send Pro Confirmation email on activation
+    if (status === 'active' && planType !== 'free') {
+      const { data: profile } = await supabase.from('profiles').select('email').eq('id', userId).single()
+      if (profile?.email) {
+        await sendProConfirmationEmail({
+          to:   profile.email,
+          name: profile.email,
+          plan: planType as 'pro' | 'team',
+        }).catch(err => console.error('[Email] Pro confirmation failed:', err))
+      }
+    }
   }
 
   // ── Handle Subscription Cancelled ──────────────────────────────
