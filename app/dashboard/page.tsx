@@ -133,6 +133,12 @@ const Icon = {
       <polyline points="12 19 5 12 12 5"/>
     </svg>
   ),
+  CreditCard: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+      <line x1="1" y1="10" x2="23" y2="10"/>
+    </svg>
+  ),
 }
 
 // ─────────────────────────────────────────────
@@ -177,7 +183,7 @@ function DashboardBackground({ accentColor, themeMode }: { accentColor: string; 
 // ─────────────────────────────────────────────
 // SIDEBAR ITEM
 // ─────────────────────────────────────────────
-const SIDEBAR_ICON_KEYS = ['Home', 'User', 'Users', 'Trophy', 'Calendar', 'Store', 'Settings', 'LogOut'] as const
+const SIDEBAR_ICON_KEYS = ['Home', 'User', 'Users', 'Trophy', 'Calendar', 'Store', 'Settings', 'LogOut', 'CreditCard'] as const
 type SidebarIconKey = typeof SIDEBAR_ICON_KEYS[number]
 
 function SidebarItem({
@@ -640,14 +646,15 @@ export default function DashboardPage() {
   const displayName = profile?.email?.split('@')[0] ?? '...'
   const userId      = profile?.id ?? ''
 
-  const sidebarItems: { labelKey: Parameters<typeof t>[0]; iconKey: SidebarIconKey; active?: boolean; locked?: boolean }[] = [
-    { labelKey: 'side_home',         iconKey: 'Home',     active: true  },
-    { labelKey: 'side_profile',      iconKey: 'User'                    },
+  const sidebarItems: { labelKey: Parameters<typeof t>[0]; iconKey: SidebarIconKey; active?: boolean; locked?: boolean; href?: string }[] = [
+    { labelKey: 'side_home',         iconKey: 'Home',     active: true, href: '/dashboard' },
+    { labelKey: 'side_profile',      iconKey: 'User',     href: '/dashboard/profile' },
+    { labelKey: 'side_billing',      iconKey: 'CreditCard', href: '/pricing' },
     { labelKey: 'side_friends',      iconKey: 'Users',    locked: true  },
     { labelKey: 'side_achievements', iconKey: 'Trophy',   locked: true  },
     { labelKey: 'side_daily',        iconKey: 'Calendar', locked: true  },
     { labelKey: 'side_store',        iconKey: 'Store',    locked: true  },
-    { labelKey: 'side_settings',     iconKey: 'Settings'                },
+    { labelKey: 'side_settings',     iconKey: 'Settings', href: '/dashboard/settings' },
   ]
 
   return (
@@ -703,6 +710,7 @@ export default function DashboardPage() {
               collapsed={collapsed}
               lang={lang}
               accentColor={accentColor}
+              onClick={() => item.href && router.push(item.href)}
             />
           ))}
         </nav>
@@ -763,7 +771,15 @@ export default function DashboardPage() {
             <ThemeToggle />
             <div className="w-px h-5 hidden sm:block" style={{ background: 'var(--border-card)' }} />
             <div className="hidden sm:block" style={{ textAlign: isRtl ? 'right' : 'left' }}>
-              <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{displayName}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{displayName}</p>
+                {(profile as any)?.plan_type && (profile as any).plan_type !== 'free' && (
+                  <div className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest text-white"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>
+                    PRO
+                  </div>
+                )}
+              </div>
               <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>
                 {t('dash_level')} 1
               </p>

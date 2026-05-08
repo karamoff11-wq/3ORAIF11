@@ -134,6 +134,8 @@ export const translations = {
     side_daily:           'التحدي اليومي',
     side_store:           'المتجر',
     side_settings:        'الإعدادات',
+    side_logout:          'تسجيل الخروج',
+    side_billing:         'الاشتراك والخطة',
     side_soon:            'قريباً',
     side_collapse:        'طيّ القائمة',
     side_expand:          'توسيع القائمة',
@@ -146,7 +148,6 @@ export const translations = {
     setup_sort_new:       'الأحدث',
     setup_add_team:       'إضافة فريق',
     setup_max_error:      'الحد الأقصى ٦ فئات فقط',
-    side_logout:          'تسجيل الخروج',
 
     // DASHBOARD EXTRA
     dash_recent_sessions: 'الجلسات الأخيرة',
@@ -406,7 +407,9 @@ export const translations = {
     side_daily:           'Daily Challenge',
     side_store:           'Store',
     side_settings:        'Settings',
-    side_soon:            'Coming Soon',
+    side_logout:          'Logout',
+    side_billing:         'Billing & Plan',
+    side_soon:            'Soon',
     side_collapse:        'Collapse',
     side_expand:          'Expand',
 
