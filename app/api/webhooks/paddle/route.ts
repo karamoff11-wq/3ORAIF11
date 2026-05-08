@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { sendProConfirmationEmail } from '@/lib/email'
 
+export const dynamic = 'force-dynamic'
+
 // ── Paddle Webhook Handler ──────────────────────────────────────────
 // Receives events from Paddle and updates the user's plan in Supabase
 // Set the webhook URL in Paddle Dashboard → Notifications → Add Endpoint:
