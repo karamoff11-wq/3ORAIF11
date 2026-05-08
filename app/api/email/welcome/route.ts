@@ -1,8 +1,8 @@
 // app/api/email/welcome/route.ts
 // Called after a new user signs up to send a welcome email via Resend.
-// Supabase Auth Trigger → this endpoint → Resend
 
-import { createClient } from '@/lib/supabaseServer'
+export const dynamic = 'force-dynamic'
+
 import { sendWelcomeEmail } from '@/lib/email'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
