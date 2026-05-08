@@ -58,9 +58,23 @@ export type GameSettings = {
   scoreboard_visible:  boolean
 }
 
+export type SystemSettings = {
+  is_maintenance:    boolean
+  allow_new_logins:  boolean
+  maintenance_msg_ar: string
+  maintenance_msg_en: string
+}
+
 // ─────────────────────────────────────────────
 // Defaults (safe fallbacks if DB is empty)
 // ─────────────────────────────────────────────
+
+export const SYSTEM_DEFAULTS: SystemSettings = {
+  is_maintenance:    false,
+  allow_new_logins:  true,
+  maintenance_msg_ar: 'الموقع تحت الصيانة حالياً. سنعود قريباً!',
+  maintenance_msg_en: 'Site is currently under maintenance. We will be back soon!',
+}
 
 export const APPEARANCE_DEFAULTS: AppearanceSettings = {
   primary_color:    '#7c3aed',

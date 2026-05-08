@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Mascot from './Mascot'
 import { createClient } from '@/lib/supabaseClient'
@@ -31,7 +31,7 @@ const DIFF = {
 }
 
 export default function QuestionModal({ sq, points, teams, onClose, triggerReaction }: Props) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const store = useGameStore()
   const { scoringConfig } = store
   const { playTick } = useSoundSystem()
@@ -66,7 +66,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
           wrong: data.filter((p: any) => p.category === 'wrong').map((p: any) => p.text),
         })
       })
-  }, [])
+  }, [supabase])
 
   // Timer
   useEffect(() => {

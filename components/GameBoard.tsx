@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useEffect, useRef } from 'react'
+import { useMemo, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useGameStore } from '@/store/gameStore'
+import { useFeedbackStore } from '@/store/feedbackStore'
 import { createClient } from '@/lib/supabaseClient'
 import { gameEngine } from '@/lib/gameEngine'
 import QuestionModal from './QuestionModal'
@@ -22,12 +23,14 @@ const DIFF_COLORS = {
 
 export default function GameBoard() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const store = useGameStore()
   const {
     sessionId, phase, sessionQuestions, categories,
     teams, selectedQuestion, scoringConfig, mascotState, isTalking, currentTeamIndex
   } = store
+  
+  const { lang } = useFeedbackStore()
   
   const { triggerReaction, settings } = useMascotBehavior()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -57,6 +60,26 @@ export default function GameBoard() {
 
   const allUsed = sessionQuestions.length > 0 && sessionQuestions.every(q => q.used)
   const activeTeam = teams[currentTeamIndex]
+
+  // ── Team card position helper — MUST be above any conditional returns ──
+  const getTeamPositionClasses = (count: number, index: number): string => {
+    if (count === 2) {
+      if (index === 0) return 'left-4 top-1/2 -translate-y-1/2'
+      if (index === 1) return 'right-4 top-1/2 -translate-y-1/2'
+    }
+    if (count === 3) {
+      if (index === 0) return 'left-4 top-4'
+      if (index === 1) return 'right-4 top-4'
+      if (index === 2) return 'left-4 bottom-4'
+    }
+    if (count >= 4) {
+      if (index === 0) return 'left-4 top-4'
+      if (index === 1) return 'right-4 top-4'
+      if (index === 2) return 'left-4 bottom-4'
+      if (index === 3) return 'right-4 bottom-4'
+    }
+    return ''
+  }
 
   const handleEndGame = async () => {
     store.setPhase('finished') // Update UI instantly
@@ -136,189 +159,296 @@ export default function GameBoard() {
   }, [triggerReaction, settings])
 
   if (phase === 'finished') {
-    const sorted = [...teams].sort((a, b) => b.score - a.score)
-    const winner = sorted[0]
-    const medals = ['🥇','🥈','🥉']
-    const vibrantColor = winner?.color || '#FF3B3B'
-    const palette = TEAM_PALETTE.find(p => p.color.toLowerCase() === vibrantColor.toLowerCase())
-    const deepColor = palette?.dark || '#1a0000'
 
-    return (
-      <div 
-        className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-        style={{ background: deepColor }}
-      >
-        {/* Layer 1: Massive vivid central bloom */}
-        <div
-          className="absolute inset-0 z-0 pointer-events-none"
-          style={{
-            background: `radial-gradient(ellipse 100% 80% at 50% 35%, ${vibrantColor} 0%, ${vibrantColor}99 30%, ${vibrantColor}22 65%, transparent 85%)`
-          }}
-        />
+  // ── Sort & derive ──
+  const sorted      = [...teams].sort((a, b) => b.score - a.score)
+  const winner      = sorted[0]
+  const medals      = ['🥇', '🥈', '🥉']
+  const winnerColor = winner?.color ?? '#8B5CF6'
 
-        {/* Layer 2: Rotating conic sweep — gives a "spotlight spinning" feel */}
+  // ── Share score handler ──
+  const handleShare = () => {
+    const text = sorted
+      .map((t, i) => `${medals[i] ?? '🎖️'} ${t.name}: ${t.score} ${lang === 'AR' ? 'نقطة' : 'pts'}`)
+      .join('\n')
+    const message = lang === 'AR'
+      ? `🏆 نتائج جلسة العُريف!\n\n${text}\n\nالعب معنا على العُريف`
+      : `🏆 Al-Arif Game Results!\n\n${text}\n\nPlay with us on Al-Arif`
+
+    if (navigator.share) {
+      navigator.share({ title: 'العُريف', text: message }).catch(() => {})
+    } else {
+      navigator.clipboard.writeText(message).then(() => {
+        // toast is already imported in GameBoard.tsx
+        toast.success(lang === 'AR' ? 'تم النسخ!' : 'Copied!')
+      }).catch(() => {})
+    }
+  }
+
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden select-none"
+      style={{
+        background: '#050510',
+        direction: lang === 'AR' ? 'rtl' : 'ltr',
+        fontFamily: 'var(--font-tajawal), var(--font-cairo), sans-serif',
+      }}
+    >
+
+      {/* ══════════════ BACKGROUND SYSTEM ══════════════ */}
+
+      {/* Layer 1 — Deep radial base bloom */}
+      <div
+        className="absolute inset-0 z-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(ellipse 120% 70% at 50% 20%,
+            ${winnerColor}55 0%,
+            ${winnerColor}22 40%,
+            transparent 70%)`,
+        }}
+      />
+
+      {/* Layer 2 — Slow rotating conic spotlight */}
+      <motion.div
+        className="absolute inset-0 z-0 pointer-events-none"
+        animate={{ rotate: [0, 360] }}
+        transition={{ repeat: Infinity, duration: 22, ease: 'linear' }}
+        style={{
+          background: `conic-gradient(
+            from 0deg at 50% 50%,
+            transparent 0deg,
+            ${winnerColor}28 55deg,
+            transparent 110deg,
+            ${winnerColor}14 190deg,
+            transparent 270deg
+          )`,
+          transformOrigin: 'center center',
+        }}
+      />
+
+      {/* Layer 3 — Secondary counter-rotating sweep */}
+      <motion.div
+        className="absolute inset-0 z-0 pointer-events-none"
+        animate={{ rotate: [360, 0] }}
+        transition={{ repeat: Infinity, duration: 34, ease: 'linear' }}
+        style={{
+          background: `conic-gradient(
+            from 180deg at 50% 50%,
+            transparent 0deg,
+            rgba(236,72,153,0.10) 40deg,
+            transparent 100deg
+          )`,
+          transformOrigin: 'center center',
+        }}
+      />
+
+      {/* Layer 4 — Bottom vignette */}
+      <div
+        className="absolute inset-x-0 bottom-0 z-0 pointer-events-none"
+        style={{ height: '40%', background: 'linear-gradient(to top, #050510, transparent)' }}
+      />
+
+      {/* ══════════════ CONFETTI PARTICLES ══════════════ */}
+      <FinishedParticles color={winnerColor} />
+
+      {/* ══════════════ MAIN CONTENT ══════════════ */}
+      <div className="relative z-10 w-full max-w-sm px-5 flex flex-col items-center gap-5">
+
+        {/* ── Winner crown burst ── */}
         <motion.div
-          className="absolute inset-0 z-0 pointer-events-none"
-          animate={{ rotate: [0, 360] }}
-          transition={{ repeat: Infinity, duration: 18, ease: 'linear' }}
-          style={{
-            background: `conic-gradient(from 0deg at 50% 50%, transparent 0deg, ${vibrantColor}30 60deg, transparent 120deg, ${vibrantColor}18 200deg, transparent 280deg)`,
-            transformOrigin: 'center center'
-          }}
-        />
-
-        {/* Layer 3: Top-left orb - fast and bright */}
-        <motion.div
-          className="absolute z-0 pointer-events-none rounded-full"
-          style={{
-            width: '55vw', height: '55vw',
-            top: '-15%', left: '-12%',
-            background: `radial-gradient(circle, ${vibrantColor}88 0%, ${vibrantColor}22 50%, transparent 75%)`,
-            filter: 'blur(30px)'
-          }}
-          animate={{ x: [0, 50, 10, 0], y: [0, 30, 10, 0] }}
-          transition={{ repeat: Infinity, duration: 8, ease: 'easeInOut' }}
-        />
-
-        {/* Layer 4: Bottom-right orb - bright accent */}
-        <motion.div
-          className="absolute z-0 pointer-events-none rounded-full"
-          style={{
-            width: '50vw', height: '50vw',
-            bottom: '-15%', right: '-10%',
-            background: `radial-gradient(circle, ${vibrantColor}77 0%, ${vibrantColor}22 50%, transparent 75%)`,
-            filter: 'blur(35px)'
-          }}
-          animate={{ x: [0, -40, -10, 0], y: [0, -25, -5, 0] }}
-          transition={{ repeat: Infinity, duration: 10, ease: 'easeInOut', delay: 1.5 }}
-        />
-
-        {/* Layer 5: Top-center pulsing shimmer */}
-        <motion.div
-          className="absolute inset-0 z-0 pointer-events-none"
-          animate={{ opacity: [0.4, 0.9, 0.4] }}
-          transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-          style={{
-            background: 'radial-gradient(ellipse 60% 40% at 50% -5%, rgba(255,255,255,0.35) 0%, transparent 100%)'
-          }}
-        />
-
-        {/* Layer 6: Mid-screen accent pulse */}
-        <motion.div
-          className="absolute inset-0 z-0 pointer-events-none"
-          animate={{ opacity: [0, 0.25, 0], scale: [0.8, 1.1, 0.8] }}
-          transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut', delay: 2 }}
-          style={{
-            background: `radial-gradient(circle at 50% 50%, ${vibrantColor}55 0%, transparent 60%)`,
-            transformOrigin: 'center'
-          }}
-        />
-
-        {/* Layer 7: Noise texture grain */}
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.06] noise" />
-
-        {/* Content */}
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0, y: 16 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-          className="relative z-10 w-full max-w-md px-6 py-12 flex flex-col items-center gap-6 text-center"
+          initial={{ scale: 0, rotate: -20, opacity: 0 }}
+          animate={{ scale: 1, rotate: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.1 }}
+          className="flex flex-col items-center gap-3"
         >
-          {/* Header */}
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-xs font-bold uppercase tracking-[0.35em] text-white/50">
-              انتهت اللعبة
-            </p>
-            <h1 className="text-5xl font-black text-white leading-tight"
-              style={{ textShadow: '0 4px 24px rgba(0,0,0,0.3)' }}>
-              {winner?.name}
-            </h1>
+          {/* Trophy glow orb */}
+          <div className="relative flex items-center justify-center">
+            <motion.div
+              animate={{ scale: [1, 1.18, 1], opacity: [0.4, 0.7, 0.4] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                width: 140, height: 140,
+                background: `radial-gradient(circle, ${winnerColor} 0%, transparent 70%)`,
+                filter: 'blur(30px)',
+              }}
+            />
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="relative z-10 text-7xl"
+            >
+              🏆
+            </motion.div>
           </div>
 
-          {/* Divider */}
-          <div className="w-16 h-0.5 rounded-full bg-white/20" />
-
-          {/* Leaderboard */}
-          <div
-            className="w-full rounded-3xl overflow-hidden border border-white/15"
-            style={{ background: 'rgba(255,255,255,0.08)' }}
+          {/* Game over label */}
+          <motion.p
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="text-[10px] font-black uppercase tracking-[0.4em]"
+            style={{ color: 'rgba(255,255,255,0.35)' }}
           >
-            {/* Label */}
-            <div className="px-6 pt-5 pb-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/40 text-center">
-                الترتيب النهائي
-              </p>
-            </div>
-            {/* Rows */}
-            <div className="px-4 pb-4 flex flex-col gap-2">
-              {sorted.map((team, i) => (
-                <motion.div
-                  key={team.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08 }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-                  style={{
-                    background: i === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.04)',
-                    border: i === 0 ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.06)'
-                  }}
-                >
-                  <span className="text-xl w-7 text-center shrink-0">{medals[i] || '🎖️'}</span>
-                  <div
-                    className="w-4 h-4 rounded-full shrink-0"
-                    style={{ background: team.color, boxShadow: `0 0 10px ${team.color}99` }}
-                  />
-                  <span className="flex-1 font-semibold text-lg text-white text-right">{team.name}</span>
-                  <div className="text-right shrink-0">
-                    <span className="text-xl font-black text-white">{team.score}</span>
-                    <span className="text-[10px] text-white/40 font-bold mr-1">نقطة</span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+            {lang === 'AR' ? 'انتهت اللعبة' : 'Game Over'}
+          </motion.p>
+
+          {/* Winner name */}
+          <motion.h1
+            initial={{ opacity: 0, scale: 0.85, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.45 }}
+            className="text-4xl md:text-5xl font-black text-center leading-tight text-white"
+            style={{ textShadow: `0 0 40px ${winnerColor}80, 0 4px 20px rgba(0,0,0,0.5)` }}
+          >
+            {winner?.name}
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="text-sm font-bold"
+            style={{ color: winnerColor }}
+          >
+            {lang === 'AR' ? `${winner?.score} نقطة` : `${winner?.score} pts`}
+          </motion.p>
+        </motion.div>
+
+        {/* ── Ranking list ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full rounded-3xl overflow-hidden"
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(24px)',
+          }}
+        >
+          <div className="px-5 pt-5 pb-3">
+            <p
+              className="text-[9px] font-black uppercase tracking-[0.35em] text-center"
+              style={{ color: 'rgba(255,255,255,0.3)' }}
+            >
+              {lang === 'AR' ? 'الترتيب النهائي' : 'Final Rankings'}
+            </p>
           </div>
 
-          {/* Buttons */}
-          <div className="w-full flex gap-3 mt-2">
+          <div className="px-3 pb-3 flex flex-col gap-2">
+            {sorted.map((team, i) => (
+              <motion.div
+                key={team.id}
+                initial={{ opacity: 0, x: lang === 'AR' ? -20 : 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.8 + i * 0.09, ease: [0.16, 1, 0.3, 1] }}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+                style={{
+                  background: i === 0
+                    ? `${winnerColor}20`
+                    : 'rgba(255,255,255,0.03)',
+                  border: i === 0
+                    ? `1px solid ${winnerColor}45`
+                    : '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                {/* Medal */}
+                <span className="text-xl w-7 text-center shrink-0 leading-none">
+                  {medals[i] ?? '🎖️'}
+                </span>
+
+                {/* Team color dot */}
+                <div
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{
+                    background: team.color,
+                    boxShadow: `0 0 8px ${team.color}90`,
+                  }}
+                />
+
+                {/* Name */}
+                <span className="flex-1 font-bold text-base text-white truncate">
+                  {team.name}
+                </span>
+
+                {/* Score */}
+                <div className="shrink-0 flex items-baseline gap-1">
+                  <span className="text-lg font-black text-white">{team.score}</span>
+                  <span
+                    className="text-[10px] font-bold"
+                    style={{ color: 'rgba(255,255,255,0.35)' }}
+                  >
+                    {lang === 'AR' ? 'نقطة' : 'pts'}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── Action buttons ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full flex flex-col gap-3"
+        >
+          {/* Play Again — primary */}
+          <button
+            onClick={() => router.push(`/game/setup/${sessionId}`)}
+            className="w-full py-4 rounded-2xl font-black text-base text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: `linear-gradient(135deg, ${winnerColor}, #EC4899)`,
+              boxShadow: `0 8px 30px ${winnerColor}40`,
+            }}
+          >
+            {lang === 'AR' ? '🎮 إعادة اللعب' : '🎮 Play Again'}
+          </button>
+
+          {/* Share + Dashboard — secondary row */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleShare}
+              className="flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+              style={{
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.7)',
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              {lang === 'AR' ? 'مشاركة' : 'Share'}
+            </button>
+
             <button
               onClick={() => router.push('/dashboard')}
-              className="group flex-1 py-3.5 rounded-xl text-sm font-semibold uppercase tracking-widest transition-all hover:scale-[1.03] active:scale-[0.97] border border-white/10"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.65)' }}
+              className="flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+              style={{
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.7)',
+              }}
             >
-              <span className="group-hover:text-white transition-colors">اللوحة</span>
-            </button>
-            <button
-              onClick={() => router.push(`/game/setup/${sessionId}`)}
-              className="group flex-1 py-3.5 rounded-xl text-sm font-black uppercase tracking-widest transition-all hover:scale-[1.03] active:scale-[0.97] shadow-lg border border-white/25"
-              style={{ background: vibrantColor, color: 'white' }}
-            >
-              <span className="relative z-10 drop-shadow">إعادة</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              {lang === 'AR' ? 'اللوحة' : 'Dashboard'}
             </button>
           </div>
         </motion.div>
-      </div>
-    )
-  }
 
-  // Adjust positioning for a smaller grid-based card
-  const getTeamPositionClasses = (count: number, index: number) => {
-    if (count === 2) {
-      if (index === 0) return 'left-4 top-1/2 -translate-y-1/2'
-      if (index === 1) return 'right-4 top-1/2 -translate-y-1/2'
-    }
-    if (count === 3) {
-      if (index === 0) return 'left-4 top-4'
-      if (index === 1) return 'right-4 top-4'
-      if (index === 2) return 'left-4 bottom-4'
-    }
-    if (count >= 4) {
-      if (index === 0) return 'left-4 top-4'
-      if (index === 1) return 'right-4 top-4'
-      if (index === 2) return 'left-4 bottom-4'
-      if (index === 3) return 'right-4 bottom-4'
-    }
-    return ''
-  }
+      </div>
+    </div>
+  )
+}
+
+  // getTeamPositionClasses has been moved above the finished-screen early return
 
   return (
     <div className="h-screen flex flex-col overflow-hidden relative" style={{ background: 'var(--color-bg)' }}>
@@ -573,6 +703,68 @@ export default function GameBoard() {
           />
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARTICLE COMPONENT
+// Place this OUTSIDE GameBoard (e.g. at the bottom of GameBoard.tsx before
+// the closing export, or in a separate file and import it).
+// Uses only React + framer-motion — no extra deps.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FinishedParticles({ color }: { color: string }) {
+  // Generate stable particles once on mount
+  const particles = useState(() =>
+    Array.from({ length: 38 }, (_, i) => ({
+      id:       i,
+      x:        Math.random() * 100,          // vw %
+      size:     Math.random() * 7 + 3,        // px
+      delay:    Math.random() * 2,
+      duration: Math.random() * 3 + 3,        // fall duration
+      wobble:   (Math.random() - 0.5) * 40,   // horizontal drift px
+      // Alternate between winner color, white, and pink
+      hue:      i % 3 === 0 ? color : i % 3 === 1 ? '#ffffff' : '#EC4899',
+      shape:    i % 4,                        // 0=circle 1=square 2=diamond 3=line
+      spin:     Math.random() * 720 - 360,
+    }))
+  )[0]
+
+  return (
+    <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+      {particles.map(p => (
+        <motion.div
+          key={p.id}
+          className="absolute"
+          style={{
+            left:   `${p.x}%`,
+            top:    '-20px',
+            width:  p.size,
+            height: p.shape === 3 ? 2 : p.size,
+            background: p.hue,
+            borderRadius:
+              p.shape === 0 ? '50%' :
+              p.shape === 1 ? '2px' :
+              p.shape === 2 ? '2px' : '99px',
+            transform: p.shape === 2 ? 'rotate(45deg)' : undefined,
+            opacity: 0.75,
+          }}
+          animate={{
+            y:       ['0vh', '110vh'],
+            x:       [0, p.wobble, -p.wobble / 2, p.wobble / 3],
+            rotate:  [0, p.spin],
+            opacity: [0, 0.9, 0.9, 0],
+          }}
+          transition={{
+            duration:    p.duration,
+            delay:       p.delay,
+            repeat:      Infinity,
+            repeatDelay: Math.random() * 4 + 2,
+            ease:        'easeIn',
+          }}
+        />
+      ))}
     </div>
   )
 }

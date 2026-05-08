@@ -20,37 +20,30 @@ export function useSession() {
   const createSession = async (mode: GameMode) => {
     setIsCreating(true)
     try {
-      let { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
 
-      // If no user, sign in anonymously — creates a real UUID in auth.users
+      // Require real authentication — no anonymous fallback
       if (!user) {
-        const { data, error } = await supabase.auth.signInAnonymously()
-        if (error) throw error
-        user = data.user
+        router.push('/auth/login')
+        return null
       }
 
-      const isGuest = user?.app_metadata?.provider === 'anonymous'
-      const hostId = user!.id  // now a real UUID, always
+      const hostId = user.id
 
-      let profile: any = null
-      if (!isGuest && user) {
-        const { data: p } = await (supabase
-          .from('profiles') as any)
-          .select('free_sessions_used')
-          .eq('id', user.id)
-          .single()
-        profile = p
-      }
-
+      const { data: profile } = await (supabase
+        .from('profiles') as any)
+        .select('free_sessions_used')
+        .eq('id', user.id)
+        .single()
 
       // Create session via engine
       const session = await gameEngine.createSession(hostId, mode)
-      
+
       // Update store
       setSession(session.id, mode)
 
-      // Mark free session as used for authenticated users
-      if (!isGuest && profile && !profile.free_sessions_used && user) {
+      // Mark free session as used
+      if (profile && !profile.free_sessions_used) {
         await (supabase
           .from('profiles') as any)
           .update({ free_sessions_used: true })

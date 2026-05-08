@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabaseClient'
 import { useFeedbackStore } from '@/store/feedbackStore'
-import { createTranslator } from '@/lib/i18n'
+import { useTranslator } from '@/lib/i18n'
 import toast from 'react-hot-toast'
 
 export default function LogoutButton() {
@@ -13,7 +13,7 @@ export default function LogoutButton() {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const { lang, accentColor } = useFeedbackStore()
-  const t = createTranslator(lang)
+  const t = useTranslator()
 
   async function handleLogout() {
     setLoading(true)
@@ -21,7 +21,7 @@ export default function LogoutButton() {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       
-      toast.success(lang === 'AR' ? 'تم تسجيل الخروج بنجاح' : 'Logged out successfully')
+      toast.success(t('logout_success'))
       router.push('/auth/login')
       router.refresh()
     } catch (error: any) {

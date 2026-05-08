@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 
 const NAV_MAIN = [
@@ -14,6 +14,7 @@ const NAV_MAIN = [
   { href: '/admin/sessions',   label: 'الجلسات',           icon: '🎮' },
   { href: '/admin/mascot',     label: 'شخصية أبو العُريف', icon: '🧞' },
   { href: '/admin/scoring',    label: 'إعدادات النقاط',    icon: '⚙️' },
+  { href: '/admin/system',     label: 'الإعدادات التقنية',  icon: '🛠️' },
 ]
 
 const NAV_CUSTOMIZE = [
@@ -26,10 +27,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const router = useRouter()
   const [checking, setChecking] = useState(true)
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     async function checkAdmin() {
-      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/login'); return }
       try {
@@ -42,7 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setChecking(false)
     }
     checkAdmin()
-  }, [router])
+  }, [router, supabase])
 
   if (checking) return (
     <div className="min-h-screen flex items-center justify-center">

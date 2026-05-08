@@ -7,7 +7,8 @@ import {
   Player, 
   SessionQuestion, 
   ScoringConfig,
-  MascotState
+  MascotState,
+  Question
 } from '@/types/game'
 
 export interface Category {
@@ -33,7 +34,7 @@ interface GameActions {
   setRevealed: (revealed: boolean) => void
   setScoringConfig: (config: ScoringConfig) => void
   setCategories: (cats: Category[]) => void
-  setSelectedQuestion: (q: any | null) => void
+  setSelectedQuestion: (q: (SessionQuestion & { question: Question }) | null) => void
   markQuestionUsed: (sqId: string) => void
   resetGame: () => void
   setIsTalking: (isTalking: boolean) => void
@@ -49,7 +50,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   streaks: {} as Record<string, number>,
   sessionQuestions: [],
   categories: [] as Category[],
-  selectedQuestion: null as any,
+  selectedQuestion: null as (SessionQuestion & { question: Question }) | null,
   currentQuestionIndex: 0,
   currentTeamIndex: 0,
   timer: 30,

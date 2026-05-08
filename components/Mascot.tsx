@@ -37,24 +37,27 @@ export default function Mascot({
   const darkColor = palette?.dark || '#000000'
 
   useEffect(() => {
-    if (!isTalking) { setMouthOpen(false); return }
+    if (!isTalking) return
     const interval = setInterval(() => setMouthOpen(p => !p), 130)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      setMouthOpen(false)
+    }
   }, [isTalking])
 
-  const containerVariants: any = {
+  const containerVariants: Record<MascotState, any> = {
     idle:       { y: [0, -5, 0],         transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' } },
     correct:    { y: [0, -22, 0, -10, 0], scale: [1, 1.08, 1], transition: { duration: 0.6 } },
     wrong:      { x: [-8, 8, -8, 8, 0],   transition: { duration: 0.4 } },
     punishment: { rotate: [-6, 6, -6, 6, 0], scale: [1, 0.92, 1], transition: { duration: 0.45 } },
     thinking:   { x: [0, -4, 0], y: [0, -3, 0], transition: { duration: 2.2, repeat: Infinity } },
     hype:       { y: [0, -24, 0], scale: [1, 1.1, 1], transition: { duration: 0.38, repeat: Infinity } },
-    angry:      { scale: [1, 1.05, 1], y: [0, -2, 0], transition: { duration: 0.22, repeat: Infinity, repeatType: 'mirror' as any } },
+    angry:      { scale: [1, 1.05, 1], y: [0, -2, 0], transition: { duration: 0.22, repeat: Infinity, repeatType: 'mirror' } },
     sad:        { y: [0, 4, 0], opacity: 0.8, transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' } },
   }
 
 
-  const eyebrowV: any = {
+  const eyebrowV: Record<MascotState, any> = {
     idle:       { y: 0, rotate: 0 },
     correct:    { y: -5, rotate: 0 },
     wrong:      { y: 3, rotate: 0 },

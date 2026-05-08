@@ -9,7 +9,7 @@ import { GameMode, Difficulty } from '@/types/game'
 * Generates a unique 6-char join code with collision retry.
 * (BUG 4 — fixed: retries up to 5 times)
 */
-async function generateUniqueJoinCode(supabase: any): Promise<string> {
+async function generateUniqueJoinCode(supabase: ReturnType<typeof createClient>): Promise<string> {
   for (let i = 0; i < 5; i++) {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase()
     const { data } = await supabase
@@ -29,7 +29,7 @@ async function generateUniqueJoinCode(supabase: any): Promise<string> {
 * a race condition where the session insert happens before the trigger commits.
 * (NEW BUG 1 fix)
 */
-async function ensureProfile(supabase: any, userId: string): Promise<void> {
+async function ensureProfile(supabase: ReturnType<typeof createClient>, userId: string): Promise<void> {
   const { data } = await supabase
     .from('profiles')
     .select('id')
@@ -40,7 +40,7 @@ async function ensureProfile(supabase: any, userId: string): Promise<void> {
     // Trigger may not have fired yet — insert manually (upsert = safe)
     const { error } = await supabase
       .from('profiles')
-      .upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true })
+      .upsert({ id: userId } as any, { onConflict: 'id', ignoreDuplicates: true })
 
     if (error) throw new Error('Failed to create user profile: ' + error.message)
   }

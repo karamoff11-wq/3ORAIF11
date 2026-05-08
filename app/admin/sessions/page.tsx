@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabaseClient'
+import toast from 'react-hot-toast'
 
 export default function AdminSessionsPage() {
   const supabase = createClient()
@@ -81,10 +82,30 @@ export default function AdminSessionsPage() {
 
                 {/* Winner */}
                 {s.state === 'finished' && topTeam && (
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>الفائز</p>
-                    <p className="font-bold text-sm gradient-text-accent">{topTeam.name}</p>
+                  <div className="shrink-0 text-right min-w-[80px]">
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>الفائز</p>
+                    <p className="font-bold text-xs gradient-text-accent">{topTeam.name}</p>
                   </div>
+                )}
+
+                {/* Actions */}
+                {s.state !== 'finished' && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm('هل أنت متأكد من رغبتك في إنهاء هذه الجلسة فوراً؟')) return
+                      const { error } = await (supabase.from('sessions') as any).update({ state: 'finished' }).eq('id', s.id)
+                      if (error) toast.error('خطأ: ' + error.message)
+                      else {
+                        toast.success('تم إنهاء الجلسة بنجاح')
+                        // Reload data
+                        const { data } = await supabase.from('sessions').select(`*, teams(id,name,score,color), profiles(email)`).order('created_at', { ascending: false }).limit(50)
+                        setSessions(data ?? [])
+                      }
+                    }}
+                    className="shrink-0 p-2 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 transition-all text-[10px] font-bold"
+                  >
+                    إنهاء الجلسة
+                  </button>
                 )}
               </div>
             )

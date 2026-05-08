@@ -2,70 +2,62 @@
 
 import { useEffect } from 'react'
 import { useFeedbackStore } from '@/store/feedbackStore'
-import GlobalControls from './GlobalControls'
-import { createClient } from '@/lib/supabaseClient'
-import { getAppSettings, APPEARANCE_DEFAULTS } from '@/lib/appSettings'
 
+/**
+ * AppWrapper — THE single source of truth for theme + lang on <html>.
+ *
+ * This is the ONLY place that touches document.documentElement for:
+ *   - theme class (.dark / .light)
+ *   - dir + lang attributes
+ *   - --accent CSS variable
+ *
+ * NO page should have its own useEffect for any of these.
+ */
 export default function AppWrapper({ children }: { children: React.ReactNode }) {
-  const { themeMode, lang, setMounted, mounted } = useFeedbackStore()
+  const { themeMode, lang, accentColor, setMounted } = useFeedbackStore()
 
+  // ── 1. Theme class → <html> ──
   useEffect(() => {
-    // Handle initial hydration
-    setMounted(true)
+    const root = document.documentElement
 
-    // Sync settings from Supabase
-    async function syncSettings() {
-      const supabase = createClient()
-      const appearance = await getAppSettings('appearance', APPEARANCE_DEFAULTS, supabase)
-      
-      // Update store with global defaults from DB (admin settings)
-      // Only set theme if the user hasn't explicitly set one locally? 
-      // Actually, for Phase 1, let's let the Admin control the global theme.
-      if (appearance.theme_mode) {
-        useFeedbackStore.getState().setThemeMode(appearance.theme_mode)
-      }
-      if (appearance.accent_color) {
-        useFeedbackStore.getState().setAccentColor(appearance.accent_color)
-      }
+    const applyTheme = (mode: string) => {
+      root.classList.remove('dark', 'light')
+      root.classList.add(mode)
+      root.style.colorScheme = mode
     }
-    syncSettings()
+
+    if (themeMode === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      applyTheme(mq.matches ? 'dark' : 'light')
+      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches ? 'dark' : 'light')
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    } else {
+      applyTheme(themeMode)
+    }
+  }, [themeMode])
+
+  // ── 2. Lang + dir → <html> ──
+  useEffect(() => {
+    const root = document.documentElement
+    root.setAttribute('lang', lang === 'AR' ? 'ar' : 'en')
+    root.setAttribute('dir',  lang === 'AR' ? 'rtl' : 'ltr')
+  }, [lang])
+
+  // ── 3. Accent color → CSS variable on <html> ──
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--accent',        accentColor)
+    root.style.setProperty('--accent-glow',   accentColor + '40')
+    root.style.setProperty('--accent-subtle', accentColor + '15')
+  }, [accentColor])
+
+  // ── 4. Signal hydration complete ──
+  useEffect(() => {
+    setMounted(true)
+    // Reveal page (was hidden by anti-flash script to prevent FOUC)
+    document.documentElement.style.visibility = 'visible'
   }, [setMounted])
 
-  useEffect(() => {
-    if (!mounted) return
-    
-    const root = window.document.documentElement
-    
-    // Apply Language Direction
-    root.dir = lang === 'AR' ? 'rtl' : 'ltr'
-    root.lang = lang === 'AR' ? 'ar' : 'en'
-    
-    // Apply Theme
-    const applyTheme = (mode: string) => {
-      root.classList.remove('light', 'dark')
-      if (mode === 'system') {
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        root.classList.add(systemTheme)
-      } else {
-        root.classList.add(mode)
-      }
-    }
-
-    applyTheme(themeMode)
-
-    // Listen for system theme changes if in system mode
-    if (themeMode === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const listener = () => applyTheme('system')
-      mediaQuery.addEventListener('change', listener)
-      return () => mediaQuery.removeEventListener('change', listener)
-    }
-  }, [themeMode, lang, mounted])
-
-  return (
-    <>
-      {children}
-      <GlobalControls />
-    </>
-  )
+  return <>{children}</>
 }

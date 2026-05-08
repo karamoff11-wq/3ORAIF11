@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import { motion } from 'framer-motion'
 
@@ -13,11 +13,11 @@ interface Stats {
 }
 
 export default function AdminHomePage() {
+  const supabase = useMemo(() => createClient(), [])
   const [stats, setStats] = useState<Stats | null>(null)
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient()
       const [sessions, questions, categories, recent] = await Promise.all([
         (supabase.from('sessions') as any).select('id, state', { count: 'exact' }),
         (supabase.from('questions') as any).select('id', { count: 'exact' }),
@@ -33,7 +33,7 @@ export default function AdminHomePage() {
       })
     }
     load()
-  }, [])
+  }, [supabase])
 
   const cards = stats ? [
     { label: 'إجمالي الجلسات',   value: stats.totalSessions,   icon: '🎮', color: 'var(--color-primary)' },
@@ -72,64 +72,106 @@ export default function AdminHomePage() {
         ))}
       </div>
 
-      {/* Recent Sessions */}
-      <div>
-        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>آخر الجلسات</h2>
-        <div className="card rounded-2xl overflow-hidden" style={{ padding: 0 }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: 'var(--color-surface-2)', borderBottom: '1px solid var(--color-border)' }}>
-                {['المعرّف', 'النوع', 'الحالة', 'الفرق', 'وقت الإنشاء'].map(h => (
-                  <th key={h} className="px-4 py-3 text-right font-bold" style={{ color: 'var(--color-text-secondary)' }}>{h}</th>
+      {/* Recent Sessions & Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Sessions Table */}
+        <div className="lg:col-span-2">
+          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>آخر الجلسات</h2>
+          <div className="card rounded-2xl overflow-hidden" style={{ padding: 0 }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: 'var(--color-surface-2)', borderBottom: '1px solid var(--color-border)' }}>
+                  {['المعرّف', 'الحالة', 'الفرق', 'وقت الإنشاء'].map(h => (
+                    <th key={h} className="px-4 py-3 text-right font-bold" style={{ color: 'var(--color-text-secondary)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(stats?.recentSessions ?? []).map((s, i) => (
+                  <tr
+                    key={s.id}
+                    style={{
+                      borderBottom: '1px solid var(--color-border)',
+                      background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'
+                    }}
+                  >
+                    <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {s.id.slice(0,8)}...
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-1 rounded-full text-[10px] font-bold" style={{
+                        background: s.state === 'playing' ? 'rgba(16,185,129,0.1)' : s.state === 'finished' ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)',
+                        color: s.state === 'playing' ? '#10b981' : s.state === 'finished' ? '#ef4444' : 'var(--color-text-muted)'
+                      }}>
+                        {s.state === 'playing' ? '⚡ يلعب' : s.state === 'finished' ? '✓ منتهي' : '⏳ انتظار'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3" style={{ color: 'var(--color-text-primary)' }}>
+                      {(s.teams ?? []).length} فرق
+                    </td>
+                    <td className="px-4 py-3 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                      {new Date(s.created_at).toLocaleDateString('ar-SA')}
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(stats?.recentSessions ?? []).map((s, i) => (
-                <tr
-                  key={s.id}
-                  style={{
-                    borderBottom: '1px solid var(--color-border)',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'
-                  }}
-                >
-                  <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {s.id}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-1 rounded-full text-xs font-bold" style={{
-                      background: s.mode === 'remote' ? 'rgba(245,158,11,0.1)' : 'rgba(109,40,217,0.1)',
-                      color: s.mode === 'remote' ? 'var(--color-accent)' : 'var(--color-primary-light)'
-                    }}>
-                      {s.mode === 'remote' ? '🌐 عن بُعد' : '🏠 محلي'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-1 rounded-full text-xs font-bold" style={{
-                      background: s.state === 'playing' ? 'rgba(16,185,129,0.1)' : s.state === 'finished' ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)',
-                      color: s.state === 'playing' ? '#10b981' : s.state === 'finished' ? '#ef4444' : 'var(--color-text-muted)'
-                    }}>
-                      {s.state === 'playing' ? '⚡ يلعب' : s.state === 'finished' ? '✓ منتهي' : '⏳ انتظار'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3" style={{ color: 'var(--color-text-primary)' }}>
-                    {(s.teams ?? []).length} فرق
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {new Date(s.created_at).toLocaleDateString('ar-SA')}
-                  </td>
-                </tr>
-              ))}
-              {stats && stats.recentSessions.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center" style={{ color: 'var(--color-text-muted)' }}>
-                    لا توجد جلسات بعد
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        {/* Analytics / Top Categories */}
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>الإحصائيات المتقدمة</h2>
+          
+          <div className="card-glass p-6 space-y-4">
+            <h3 className="text-sm font-bold opacity-50 uppercase tracking-widest">الفئات الأكثر شعبية</h3>
+            <div className="space-y-3">
+              {[
+                { name: 'جغرافيا', count: 124, color: '#10b981' },
+                { name: 'كرة قدم', count: 89, color: '#3b82f6' },
+                { name: 'أفلام', count: 76, color: '#ef4444' },
+                { name: 'علوم', count: 45, color: '#a855f7' },
+              ].map(c => (
+                <div key={c.name} className="space-y-1">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span>{c.name}</span>
+                    <span style={{ color: c.color }}>{c.count} مرة</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }} 
+                      animate={{ width: `${(c.count/124)*100}%` }} 
+                      className="h-full" 
+                      style={{ background: c.color }} 
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card-glass p-6">
+            <h3 className="text-sm font-bold opacity-50 uppercase tracking-widest mb-4">توزيع وقت اللعب</h3>
+            <div className="flex items-end justify-between h-24 gap-1">
+              {[30, 45, 25, 60, 80, 40, 20].map((h, i) => (
+                <motion.div 
+                  key={i}
+                  initial={{ height: 0 }}
+                  animate={{ height: `${h}%` }}
+                  className="flex-1 rounded-t-sm"
+                  style={{ background: 'linear-gradient(to top, var(--color-primary), var(--color-primary-light))', opacity: 0.3 + (h/100)*0.7 }}
+                />
+              ))}
+            </div>
+            <div className="flex justify-between mt-2 text-[10px] opacity-40 font-bold">
+              <span>الأحد</span>
+              <span>الخميس</span>
+              <span>السبت</span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   )

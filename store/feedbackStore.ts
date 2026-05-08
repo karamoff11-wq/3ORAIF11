@@ -72,6 +72,11 @@ export const useFeedbackStore = create<FeedbackState>()(
     }),
     {
       name: 'abu-al-areef-feedback-storage',
+      partialize: (state) => ({
+        lang: state.lang,
+        themeMode: state.themeMode,
+        accentColor: state.accentColor,
+      }),
     }
   )
 )

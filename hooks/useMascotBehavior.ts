@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import { useGameStore } from '@/store/gameStore'
 import type { MascotState } from '@/types/game'
@@ -23,7 +23,7 @@ interface MascotSettings {
 }
 
 export function useMascotBehavior() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [phrases, setPhrases] = useState<MascotPhrase[]>([])
   const [settings, setSettings] = useState<MascotSettings | null>(null)
   const store = useGameStore()
@@ -44,7 +44,7 @@ export function useMascotBehavior() {
       if (phrsRes.data) setPhrases(phrsRes.data)
     }
     loadMascotData()
-  }, [])
+  }, [supabase])
 
   const triggerReaction = useCallback((type: 'correct' | 'wrong' | 'hype' | 'punishment' | 'thinking' | 'intro', overrideText?: string) => {
     if (!settings?.enabled || type === 'punishment') return

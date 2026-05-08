@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useFeedbackStore } from '@/store/feedbackStore'
-import { createTranslator, type Lang } from '@/lib/i18n'
+import { useTranslator, createTranslator } from '@/lib/i18n'
+import { ASSETS } from '@/lib/constants'
+import { QUIZ_QUESTIONS } from '@/lib/quiz'
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -14,12 +16,7 @@ type ThemeMode = 'dark' | 'light' | 'system'
 // ─────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────
-const QUIZ_QUESTIONS = [
-  { q_ar: "ما هي عاصمة الأندلس قديماً؟",       q_en: "What was the ancient capital of Andalusia?",     a_ar: ["قرطبة","غرناطة","إشبيلية","مدريد"],          a_en: ["Córdoba","Granada","Seville","Madrid"],          correct: 0 },
-  { q_ar: "من هو الملقب بـ 'صقر قريش'؟",        q_en: "Who was known as 'Falcon of Quraysh'?",          a_ar: ["عبدالرحمن الداخل","هارون الرشيد","خالد بن الوليد","معاوية بن أبي سفيان"], a_en: ["Abd al-Rahman I","Harun al-Rashid","Khalid ibn Walid","Muawiya ibn Abi Sufyan"], correct: 0 },
-  { q_ar: "كم عدد القلوب لدى الأخطبوط؟",       q_en: "How many hearts does an octopus have?",          a_ar: ["1","2","3","4"],                               a_en: ["1","2","3","4"],                                correct: 2 },
-  { q_ar: "أطول نهر في العالم هو؟",             q_en: "What is the longest river in the world?",        a_ar: ["الأمازون","النيل","الميسيسيبي","الدانوب"],    a_en: ["Amazon","Nile","Mississippi","Danube"],          correct: 1 },
-]
+// Quiz moved to lib/quiz.ts
 
 const ARABIC_FLAGS = ['sa','ae','kw','qa','bh','om','eg','jo','lb','ps','iq','ye','ly','dz','ma','tn','sd','sy','so','mr','dj','km']
 
@@ -92,9 +89,9 @@ function PlayIcon({ size = 20, color = 'currentColor' }: { size?: number; color?
 // LIVING PLANET COMPONENT
 // CSS/SVG hybrid — no Three.js, premium feel
 // ─────────────────────────────────────────────
-function LivingPlanet({ lang }: { lang: Lang }) {
-  const { accentColor, themeMode } = useFeedbackStore()
-  const t = createTranslator(lang)
+function LivingPlanet() {
+  const { accentColor, themeMode, lang } = useFeedbackStore()
+  const t = useTranslator()
   const [activeOrb, setActiveOrb] = useState<number | null>(null)
   const [energyProgress, setEnergyProgress] = useState(0)
   const [mounted, setMounted] = useState(false)
@@ -135,22 +132,25 @@ function LivingPlanet({ lang }: { lang: Lang }) {
       />
 
       {/* ── Particle dust (CSS only, GPU-friendly) ── */}
-      {mounted && !prefersReduced && [...Array(12)].map((_, i) => (
-        <div
-          key={i}
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            width:  Math.random() * 3 + 1 + 'px',
-            height: Math.random() * 3 + 1 + 'px',
-            background: `${activeColor}60`,
-            top:  `${20 + Math.random() * 60}%`,
-            left: `${15 + Math.random() * 70}%`,
-            opacity: 0.4 + Math.random() * 0.3,
-            animation: `float-particle ${8 + i * 1.3}s ease-in-out infinite`,
-            animationDelay: `${i * 0.7}s`,
-          }}
-        />
-      ))}
+      {mounted && !prefersReduced && [...Array(12)].map((_, i) => {
+        const style = {
+          width: (Math.sin(i) * 1.5 + 2.5) + 'px',
+          height: (Math.sin(i) * 1.5 + 2.5) + 'px',
+          background: `${activeColor}60`,
+          top: `${25 + (Math.cos(i) * 30 + 30)}%`,
+          left: `${20 + (Math.sin(i * 2) * 30 + 30)}%`,
+          opacity: 0.4 + (Math.abs(Math.sin(i * 3)) * 0.3),
+          animation: `float-particle ${8 + i * 1.3}s ease-in-out infinite`,
+          animationDelay: `${i * 0.7}s`,
+        }
+        return (
+          <div
+            key={i}
+            className="absolute rounded-full pointer-events-none"
+            style={style}
+          />
+        )
+      })}
 
       {/* ── Orbiting Moons ── */}
       {ORBITAL_DATA.map((orb, i) => {
@@ -351,9 +351,9 @@ function LivingPlanet({ lang }: { lang: Lang }) {
 // ─────────────────────────────────────────────
 // VERTICAL ROADMAP
 // ─────────────────────────────────────────────
-function VerticalRoadmap({ lang }: { lang: Lang }) {
+function VerticalRoadmap() {
   const { roadmapNodes, accentColor } = useFeedbackStore()
-  const t = createTranslator(lang)
+  const t = useTranslator()
 
   return (
     <section className="relative z-10 px-6 md:px-16 py-28">
@@ -378,6 +378,9 @@ function VerticalRoadmap({ lang }: { lang: Lang }) {
 
         {roadmapNodes.map((node, i) => {
           const isRight = i % 2 === 0
+          const label = t(`roadmap_node${i+1}_label` as any) || node.label
+          const desc = t(`roadmap_node${i+1}_desc` as any) || node.desc
+          
           return (
             <motion.div
               key={i}
@@ -425,7 +428,7 @@ function VerticalRoadmap({ lang }: { lang: Lang }) {
                     className="text-base font-black transition-all"
                     style={{ color: node.completed ? 'var(--text-primary)' : 'var(--text-secondary)' }}
                   >
-                    {node.label}
+                    {label}
                   </h3>
                   {node.completed && (
                     <span
@@ -437,7 +440,7 @@ function VerticalRoadmap({ lang }: { lang: Lang }) {
                   )}
                 </div>
                 <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  {node.desc}
+                  {desc}
                 </p>
               </div>
             </motion.div>
@@ -451,9 +454,9 @@ function VerticalRoadmap({ lang }: { lang: Lang }) {
 // ─────────────────────────────────────────────
 // QUIZ
 // ─────────────────────────────────────────────
-function InteractiveQuiz({ lang }: { lang: Lang }) {
-  const { mounted, accentColor } = useFeedbackStore()
-  const t = createTranslator(lang)
+function InteractiveQuiz() {
+  const { mounted, accentColor, lang } = useFeedbackStore()
+  const t = useTranslator()
   const [index] = useState(() => Math.floor(Math.random() * QUIZ_QUESTIONS.length))
   const [selected, setSelected] = useState<number | null>(null)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
@@ -463,8 +466,8 @@ function InteractiveQuiz({ lang }: { lang: Lang }) {
 
   if (!mounted) return null
   const q = QUIZ_QUESTIONS[index]
-  const question = lang === 'EN' ? q.q_en : q.q_ar
-  const answers  = lang === 'EN' ? q.a_en : q.a_ar
+  const question = q[lang].question
+  const answers  = q[lang].answers
 
   const handleAnswer = (i: number) => {
     if (selected !== null) return
@@ -475,8 +478,8 @@ function InteractiveQuiz({ lang }: { lang: Lang }) {
       setIsCorrect(i === q.correct)
       if (i !== q.correct) setShake(true)
       setTimeout(() => setShake(false), 500)
-      setTimeout(() => setIsDone(true), 2000)
-    }, 1200)
+      setTimeout(() => setIsDone(true), 1500)
+    }, 1000)
   }
 
   return (
@@ -559,17 +562,38 @@ function InteractiveQuiz({ lang }: { lang: Lang }) {
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="flex flex-col items-center justify-center py-10 gap-4"
+            className="flex flex-col items-center justify-center p-10 md:p-14 rounded-3xl glass-card relative overflow-hidden"
+            style={{ borderColor: accentColor + '40', background: 'var(--glass-card-bg)' }}
           >
+            <div className="absolute inset-0 pointer-events-none opacity-20" style={{ background: `radial-gradient(circle at 50% -20%, ${accentColor}, transparent 70%)` }} />
+            
             <motion.div
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              className="text-4xl"
+              animate={{ y: [0, -8, 0], scale: [1, 1.05, 1] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-6 shadow-2xl"
+              style={{ background: `linear-gradient(135deg, ${accentColor}40, transparent)`, border: `1px solid ${accentColor}50` }}
             >
-              ☝️
+              ✨
             </motion.div>
-            <p className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>{t('quiz_done_title')}</p>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('quiz_done_sub')}</p>
+            
+            <h3 className="text-2xl md:text-3xl font-black mb-3 text-center" style={{ color: 'var(--text-primary)' }}>
+              {lang === 'AR' ? 'مستعد للتحدي الحقيقي؟' : 'Ready for the real challenge?'}
+            </h3>
+            <p className="text-sm text-center max-w-sm mb-8 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              {lang === 'AR' ? 'قم بإنشاء حسابك الآن وانضم إلى آلاف اللاعبين في تجربة العُريف السينمائية.' : 'Create your account now and join thousands of players in Al-Arif\'s cinematic experience.'}
+            </p>
+            
+            <Link
+              href="/auth/register"
+              className="px-8 py-3.5 rounded-2xl font-black text-white text-sm transition-all hover:scale-105 active:scale-95 shadow-xl flex items-center gap-2"
+              style={{ background: `linear-gradient(135deg, ${accentColor}, #EC4899)`, boxShadow: `0 8px 25px ${accentColor}40` }}
+            >
+              <span>{lang === 'AR' ? 'ابدأ رحلتك الآن' : 'Start Your Journey Now'}</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={lang === 'AR' ? 'rotate-180' : ''}>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </Link>
           </motion.div>
         )}
       </AnimatePresence>
@@ -698,40 +722,6 @@ function ThemeToggle() {
 // ─────────────────────────────────────────────
 // AMBIENT SOUND
 // ─────────────────────────────────────────────
-function AmbientSound() {
-  const [playing, setPlaying] = useState(false)
-  const ref = useRef<HTMLAudioElement>(null)
-
-  const toggle = () => {
-    if (!ref.current) return
-    ref.current.volume = 0.25
-    playing ? ref.current.pause() : ref.current.play().catch(() => {})
-    setPlaying(p => !p)
-  }
-
-  return (
-    <div className="fixed bottom-8 left-8 z-50">
-      <audio ref={ref} src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop />
-      <button
-        onClick={toggle}
-        className="w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-        style={{ background: 'var(--glass-card-bg)', border: '1px solid var(--glass-card-border)', backdropFilter: 'blur(16px)' }}
-      >
-        <div className="flex gap-[2px] items-center h-3">
-          {[1,2,3,4,5].map(i => (
-            <motion.div
-              key={i}
-              animate={{ height: playing ? [3, 11, 3] : 3, opacity: playing ? [0.4, 1, 0.4] : 0.3 }}
-              transition={{ duration: 0.5 + i * 0.1, repeat: Infinity }}
-              className="w-[2px] rounded-full"
-              style={{ background: 'var(--text-primary)' }}
-            />
-          ))}
-        </div>
-      </button>
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -747,12 +737,10 @@ function getYouTubeId(url: string) {
 export default function HomePage() {
   const {
     comments, videoUrl, addComment,
-    accentColor, themeMode, setThemeMode,
+    accentColor, themeMode, lang,
     mounted, setMounted,
   } = useFeedbackStore()
 
-  const [lang, setLang] = useState<Lang>('AR')
-  const [isLangOpen, setIsLangOpen] = useState(false)
   const [isSocialsOpen, setIsSocialsOpen] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
   const [flagIndex, setFlagIndex] = useState(0)
@@ -763,33 +751,11 @@ export default function HomePage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  const t = createTranslator(lang)
+  const t = useTranslator()
   const dir = lang === 'AR' ? 'rtl' : 'ltr'
   const isLight = themeMode === 'light'
 
   useEffect(() => { setMounted(true) }, [setMounted])
-
-  // Apply theme to document
-  useEffect(() => {
-    if (!mounted) return
-    const root = document.documentElement
-    const apply = (mode: string) => {
-      root.classList.remove('light', 'dark')
-      root.classList.add(mode)
-      root.style.colorScheme = mode
-    }
-    if (themeMode === 'system') {
-      apply(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    } else {
-      apply(themeMode)
-    }
-  }, [themeMode, mounted])
-
-  // Apply lang direction
-  useEffect(() => {
-    document.documentElement.setAttribute('lang', lang === 'AR' ? 'ar' : 'en')
-    document.documentElement.setAttribute('dir', dir)
-  }, [lang, dir])
 
   useEffect(() => {
     const id = setInterval(() => setFlagIndex(p => (p + 1) % ARABIC_FLAGS.length), 4500)
@@ -817,10 +783,16 @@ export default function HomePage() {
     if (ytId && iframeRef.current) {
       iframeRef.current.contentWindow?.postMessage(JSON.stringify({ event: 'command', func: isVideoPlaying ? 'pauseVideo' : 'playVideo' }), '*')
     } else if (videoRef.current) {
-      isVideoPlaying ? videoRef.current.pause() : videoRef.current.play()
+      if (isVideoPlaying) {
+        videoRef.current.pause()
+      } else {
+        videoRef.current.play()
+      }
     }
     setIsVideoPlaying(p => !p)
   }, [videoUrl, isVideoPlaying])
+
+  if (!mounted) return null
 
   const features = [
     { icon: '⚡', title: t('feat1_title'), desc: t('feat1_desc'), color: '#8B5CF6' },
@@ -835,7 +807,6 @@ export default function HomePage() {
       style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', direction: dir, fontFamily: 'var(--font-tajawal), var(--font-cairo), sans-serif' }}
     >
       <Background />
-      <AmbientSound />
 
       {/* ── CSS variable injection ── */}
       <style>{`
@@ -869,53 +840,6 @@ export default function HomePage() {
         </Link>
 
         <div className="flex items-center gap-1 p-1 rounded-full glass-card">
-          <ThemeToggle />
-
-          <div className="w-px h-4 mx-1" style={{ background: 'var(--border-card)' }} />
-
-          {/* Lang picker */}
-          <div className="relative">
-            <button
-              onClick={() => setIsLangOpen(p => !p)}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-black transition-all hover:scale-105 focus:outline-none"
-              style={{ color: 'var(--text-secondary)', background: 'transparent' }}
-            >
-              {lang}
-            </button>
-            <AnimatePresence>
-              {isLangOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setIsLangOpen(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                    className="absolute top-full mt-2 w-32 rounded-2xl p-2 z-50 glass-card overflow-hidden"
-                    style={{ [lang === 'AR' ? 'right' : 'left']: 0 }}
-                  >
-                    {(['AR', 'EN'] as Lang[]).map(l => (
-                      <button
-                        key={l}
-                        onClick={() => { setLang(l); setIsLangOpen(false) }}
-                        className="w-full px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between"
-                        style={{
-                          background: lang === l ? 'var(--bg-card-hover)' : 'transparent',
-                          color: lang === l ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                          direction: l === 'AR' ? 'rtl' : 'ltr',
-                        }}
-                      >
-                        <span>{l === 'AR' ? t('lang_ar') : t('lang_en')}</span>
-                        {lang === l && <span className="w-1.5 h-1.5 rounded-full" style={{ background: accentColor }} />}
-                      </button>
-                    ))}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="w-px h-4 mx-1" style={{ background: 'var(--border-card)' }} />
-
           {/* Login hover card */}
           <div className="relative" onMouseEnter={() => setIsLoginHovered(true)} onMouseLeave={() => setIsLoginHovered(false)}>
             <Link
@@ -958,6 +882,8 @@ export default function HomePage() {
             </AnimatePresence>
           </div>
 
+          <ThemeToggle />
+          <div className="w-px h-5 mx-1" style={{ background: 'var(--border-subtle)' }} />
           <Link
             href="/auth/register"
             className="px-6 py-2.5 rounded-full text-sm font-black text-white transition-all hover:scale-[1.02] active:scale-95 ml-1"
@@ -986,21 +912,41 @@ export default function HomePage() {
               {t('hero_badge')}
             </div>
 
-            <h1 className="font-black leading-[1.25] mb-10" style={{ fontSize: 'clamp(48px, 7vw, 88px)' }}>
-              <span className="block mb-1" style={{ color: 'var(--text-primary)' }}>{t('hero_line1')}</span>
-              <span
-                className="block mb-1"
+            <h1 className="leading-[1.1] mb-12" style={{ fontSize: 'clamp(56px, 8vw, 102px)', fontFamily: "'Aref Ruqaa', serif" }}>
+              <motion.span
+                initial={{ opacity: 0, x: dir === 'rtl' ? 30 : -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="block mb-2"
+                style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
+              >
+                {t('hero_line1')}
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 1, delay: 0.4 }}
+                className="block mb-2"
                 style={{
-                  background: `linear-gradient(135deg, ${accentColor}, #EC4899)`,
+                  backgroundImage: `linear-gradient(135deg, ${accentColor}, #EC4899)`,
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
-                  filter: `drop-shadow(0 0 30px ${accentColor}40)`,
+                  filter: `drop-shadow(0 0 35px ${accentColor}50)`,
+                  letterSpacing: '-0.01em'
                 }}
               >
                 {t('hero_line2')}
-              </span>
-              <span className="block" style={{ color: 'var(--text-primary)' }}>{t('hero_line3')}</span>
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, x: dir === 'rtl' ? -30 : 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.6 }}
+                className="block"
+                style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
+              >
+                {t('hero_line3')}
+              </motion.span>
             </h1>
 
             <p className="text-lg mb-8 max-w-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
@@ -1067,7 +1013,7 @@ export default function HomePage() {
             transition={{ duration: 0.9, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="flex items-center justify-center"
           >
-            <LivingPlanet lang={lang} />
+            <LivingPlanet />
           </motion.div>
         </div>
       </section>
@@ -1198,9 +1144,9 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="flex flex-col h-[420px] rounded-3xl glass-card p-7 overflow-hidden"
+            className="flex flex-col h-[420px] rounded-3xl glass-card p-6 overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-7 shrink-0">
+            <div className="flex items-center justify-between mb-5 shrink-0">
               <div className="flex items-center gap-3">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
@@ -1213,39 +1159,39 @@ export default function HomePage() {
                   <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{t('comments_sub')}</p>
                 </div>
               </div>
-              <div className="flex -space-x-2">
+              <div className="flex -space-x-1.5">
                 {[1,2,3,4].map(i => (
-                  <div key={i} className="w-7 h-7 rounded-full" style={{ background: 'var(--bg-card)', border: '2px solid var(--bg-primary)' }} />
+                  <div key={i} className="w-6 h-6 rounded-full" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--bg-primary)' }} />
                 ))}
               </div>
             </div>
 
-            <div className="flex-1 relative overflow-hidden mb-6 min-h-0">
+            <div className="flex-1 relative overflow-hidden mb-5 min-h-0">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={feedbackPage}
-                  initial={{ opacity: 0, y: -20 }}
+                  initial={{ opacity: 0, y: -16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
+                  exit={{ opacity: 0, y: 16 }}
                   transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute inset-0 flex flex-col gap-3"
+                  className="absolute inset-0 flex flex-col gap-2.5"
                 >
                   {visibleComments.slice(feedbackPage * 3, feedbackPage * 3 + 3).map((f, i) => (
                     <motion.div
                       key={f.id}
-                      initial={{ opacity: 0, y: 8 }}
+                      initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.07 }}
-                      className="p-4 rounded-2xl transition-all"
+                      className="px-4 py-3 rounded-xl transition-all h-[75px] flex flex-col justify-center"
                       style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}
                     >
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-sm font-bold" style={{ color: f.name.includes('أنت') || f.name.includes('You') ? '#10B981' : isLight ? accentColor : '#a78bfa' }}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[11px] font-bold" style={{ color: f.name.includes('أنت') || f.name.includes('You') ? '#10B981' : isLight ? accentColor : '#a78bfa' }}>
                           {f.name}
                         </span>
-                        <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{f.date}</span>
+                        <span className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>{f.date}</span>
                       </div>
-                      <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{f.text}</p>
+                      <p className="text-[11px] leading-snug line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{f.text}</p>
                     </motion.div>
                   ))}
                 </motion.div>
@@ -1259,7 +1205,7 @@ export default function HomePage() {
                 onChange={e => setNewFeedback(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSend()}
                 placeholder={t('comments_ph')}
-                className="w-full py-3.5 pr-5 pl-24 rounded-2xl text-sm outline-none transition-all"
+                className="w-full py-3 pr-4 pl-20 rounded-xl text-xs outline-none transition-all"
                 style={{
                   background: 'var(--bg-input)',
                   border: '1px solid var(--border-card)',
@@ -1268,7 +1214,7 @@ export default function HomePage() {
               />
               <button
                 onClick={handleSend}
-                className="absolute left-2 top-2 bottom-2 px-5 rounded-xl text-xs font-black text-white transition-all hover:scale-[1.02] active:scale-95"
+                className="absolute left-1.5 top-1.5 bottom-1.5 px-4 rounded-lg text-[10px] font-black text-white transition-all hover:scale-[1.02] active:scale-95"
                 style={{ background: `linear-gradient(135deg, ${accentColor}, #3B82F6)`, boxShadow: `0 4px 14px ${accentColor}35` }}
               >
                 {t('comments_send')}
@@ -1279,7 +1225,7 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════ ROADMAP ════════════════════ */}
-      <VerticalRoadmap lang={lang} />
+      <VerticalRoadmap />
 
       {/* ════════════════════ CTA ════════════════════ */}
       <section className="relative z-10 px-6 md:px-16 pb-24">
@@ -1314,7 +1260,7 @@ export default function HomePage() {
                 {t('cta_join')}
               </Link>
             </div>
-            <InteractiveQuiz lang={lang} />
+            <InteractiveQuiz />
           </div>
         </div>
       </section>

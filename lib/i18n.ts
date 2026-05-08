@@ -4,6 +4,9 @@
 // Usage: import { useT, translations } from '@/lib/i18n'
 // ============================================================
 
+import { useFeedbackStore } from '@/store/feedbackStore'
+import { useMemo } from 'react'
+
 export type Lang = 'AR' | 'EN'
 
 export const translations = {
@@ -55,6 +58,16 @@ export const translations = {
     roadmap_title:    'جوهر التطوير:',
     roadmap_title2:   'مسيرة العُريف',
     roadmap_done:     'تم الإنجاز بنجاح',
+
+    // ROADMAP NODES
+    roadmap_node1_label: 'المتجر العالمي',
+    roadmap_node1_desc:  'أدوات تجميلية وحزم حصرية',
+    roadmap_node2_label: 'البطولات الكبرى',
+    roadmap_node2_desc:  'جوائز نقدية وتصنيف عالمي',
+    roadmap_node3_label: 'نظام القبائل',
+    roadmap_node3_desc:  'كوّن فريقك وسيطر على اللوحة',
+    roadmap_node4_label: 'تطبيق الهاتف',
+    roadmap_node4_desc:  'العُريف في جيبك أينما كنت',
 
     // CTA
     cta_title:        'جاهز للتحدي؟',
@@ -124,7 +137,6 @@ export const translations = {
     side_soon:            'قريباً',
     side_collapse:        'طيّ القائمة',
     side_expand:          'توسيع القائمة',
-    side_logout:          'تسجيل الخروج',
 
     // GAME SETUP
     setup_search_ph:      'ابحث عن موضوع أو فئة...',
@@ -132,38 +144,129 @@ export const translations = {
     setup_sort_alpha:     'أبجدي',
     setup_sort_popular:   'الأكثر',
     setup_sort_new:       'الأحدث',
-    setup_launch:         'إطلاق اللعبة',
-    setup_step_final:     'الخطوة الأخيرة — سمّ جلستك',
-    setup_session_ph:     'اسم الجلسة...',
     setup_add_team:       'إضافة فريق',
     setup_max_error:      'الحد الأقصى ٦ فئات فقط',
-    setup_title:          'إعداد اللعبة',
-    setup_subtitle:       'اختر المواضيع والفئات لبدء التحدي',
-    setup_next_step:      'الخطوة التالية',
-    setup_cats:           'فئات',
-    setup_topic_label:    'الموضوع الحالي',
-    setup_topic_desc:     'استكشف الفئات المتاحة تحت هذا الموضوع وقم باختيار ما يناسب تحديك.',
-    setup_step_cats:      'اختر الفئات (بحد أقصى ٦)',
-    setup_unselect_all:   'إلغاء الكل',
-    setup_select_all:     'تحديد الكل',
-    setup_explore:        'استكشاف',
-    setup_error_cat:      'يرجى اختيار فئة واحدة على الأقل',
-    setup_success:        'تم إعداد الجلسة بنجاح!',
-    setup_selected:       'مختارة',
+    side_logout:          'تسجيل الخروج',
 
-    // GAME PREP LOADING
-    game_prep_q:          'جاري تحميل الأسئلة...',
-    game_prep_mascot:     'أبو العُريف يستعد...',
-    game_prep_hard:       'الأسئلة الصعبة على الطريق!',
-    game_prep_wait:       'لحظات وتبدأ المعركة...',
-    game_prep_arena:      'ساحة المعركة جاهزة!',
-    game_prep_know:       'هل أنت جاهز؟',
-    game_loading:         'جاري التحميل...',
-    game_footer:          'أبو العُريف',
-    game_error_title:     'خطأ في تحميل الجلسة',
-    game_error_sub:       'لم نتمكن من العثور على الجلسة المطلوبة. تأكد من صحة الرابط.',
+    // DASHBOARD EXTRA
+    dash_recent_sessions: 'الجلسات الأخيرة',
+    dash_last_4:          'آخر ٤',
+    dash_no_sessions:     'لا توجد جلسات بعد',
+    dash_start_first:     'ابدأ لعبتك الأولى أعلاه',
+    dash_session_label:   'جلسة',
+    dash_welcome_toast:   'مرحباً بك في العُريف! 🎉',
+    dash_logout_toast:    'تم تسجيل الخروج',
+    logout_success:       'تم تسجيل الخروج بنجاح',
+
+    // GAME SETUP
+    setup_title:          'تجهيز اللعبة',
+    setup_teams:          'الفرق',
+    setup_topics:         'المواضيع',
+    setup_punishments:    'العقوبات',
+    setup_punishments_sub: 'أضف لمسة من التحدي',
+    setup_launch:         'انطلاق',
+    setup_back:           'رجوع',
+    setup_edit:           'تعديل',
+    setup_categories:     'فئة',
+    setup_preparing:      'جاري تجهيز الأسئلة…',
+    setup_wait:           'يرجى الانتظار قليلاً',
+    setup_punish_enabled: 'عقوبة مفعّلة',
+    setup_punish_disabled: 'معطّلة',
+    setup_level_easy:     'سهل',
+    setup_level_medium:   'متوسط',
+    setup_level_hard:     'صعب',
+    setup_mode_wheel:     'عجلة الحظ',
+    setup_mode_voted:     'تصويت الخصوم',
+    setup_mode_escalating: 'تصاعدي',
+    setup_mode_mixed:     'كل الأوضاع',
+    setup_mode_wheel_desc: 'دوران عشوائي من القائمة',
+    setup_mode_voted_desc: 'الفريق المنافس يختار العقوبة',
+    setup_mode_escalating_desc: 'تشتد العقوبة مع كل دور',
+    setup_mode_mixed_desc: 'مزيج من الأوضاع السابقة',
+
+    // SETUP EXTRA
+    setup_subtitle:       'اختر موضوعاتك وابدأ',
+    setup_step_final:     'الخطوة الأخيرة — سمّ جلستك',
+    setup_session_ph:     'اسم الجلسة...',
+    setup_next_step:      'الخطوة التالية',
+    setup_error_cat:      'اختر فئة واحدة على الأقل',
+    setup_cats:           'فئات',
+    setup_step_cats:      'الفئات',
+    setup_select_all:     'تحديد الكل',
+    setup_unselect_all:   'إلغاء الجميع',
+
+    // AUTH
+    auth_gender:          'الجنس',
+    auth_male:            'ذكر',
+    auth_female:          'أنثى',
+    auth_birthdate:       'تاريخ الميلاد',
+    auth_phone:           'رقم الهاتف',
+    auth_back:            'رجوع',
+    auth_next:            'تالي',
+    auth_submit:          'تسجيل',
+    auth_username:        'اسم المستخدم',
+    auth_email:           'البريد الإلكتروني',
+    auth_password:        'كلمة المرور',
+    auth_login_title:     'أهلاً بعودتك',
+    auth_login_sub:       'سجّل دخولك واستمر رحلتك',
+    auth_forgot:          'نسيت كلمة المرور؟',
+    auth_login_btn:       'دخول',
+    auth_no_account:      'ليس لديك حساب؟',
+    auth_register_btn:    'سجّل الآن',
+
+    // PRICING
+    pricing_title:        'اختر خطتك المثالية',
+    pricing_sub:          'ابدأ مجاناً اليوم واستمتع بجلسات تريفيا لا تُنسى مع أصدقائك',
+    pricing_back:         'العودة للرئيسية',
+    pricing_popular:      'الأكثر شعبية ✨',
+    pricing_queries:      'هل لديك استفسارات خاصة؟',
+    pricing_contact:      'تواصل معنا الآن',
+    pricing_terms:        'تطبق الشروط والأحكام',
+    pricing_forever:      'للأبد',
+    pricing_monthly:      'شهرياً',
+    pricing_free_name:    'مجاني',
+    pricing_free_desc:    'ابدأ رحلتك وجرّب المنصة',
+    pricing_free_cta:     'ابدأ مجاناً',
+    pricing_pro_name:     'برو',
+    pricing_pro_desc:     'للمضيفين الجادين والمجموعات النشطة',
+    pricing_pro_cta:      'اشترك الآن',
+    pricing_team_name:    'فريق',
+    pricing_team_desc:    'للشركات والمدارس والفعاليات الكبيرة',
+    pricing_team_cta:     'تواصل معنا',
+
+    // FEATURES LIST
+    feat_free_1:          'جلسة واحدة مجانية',
+    feat_free_2:          'وضع اللعب المحلي',
+    feat_free_3:          '٦٠+ سؤال متاح',
+    feat_free_4:          'حتى فريقين',
+    feat_pro_1:           'جلسات غير محدودة',
+    feat_pro_2:           'وضع اللعب المحلي والبعيد',
+    feat_pro_3:           '٦٠+ سؤال + إضافة أسئلتك',
+    feat_pro_4:           'حتى ٤ فرق',
+    feat_pro_5:           'إزالة الإعلانات',
+    feat_pro_6:           'تخصيص الثيم واللوغو',
+    feat_pro_7:           'دعم أولوي',
+    feat_team_1:          'كل مزايا برو',
+    feat_team_2:          'حتى ١٠ فرق في الجلسة',
+    feat_team_3:          'لوحة إدارة مخصصة',
+    feat_team_4:          'تقارير وإحصاءات متقدمة',
+    feat_team_5:          'إضافة شعار الشركة',
+    feat_team_6:          'API للتكامل مع أنظمتك',
+    feat_team_7:          'دعم على مدار الساعة',
+
+    // GAME SESSION
+    game_loading:         'جاري التحميل',
+    game_footer:          'جميع الحقوق محفوظة',
+    game_error_title:     'عذراً، حدث خطأ ما',
+    game_error_sub:       'لم نتمكن من تحميل الجلسة. يرجى التحقق من اتصالك أو المحاولة لاحقاً.',
     game_retry:           'إعادة المحاولة',
-    game_back_dash:       'العودة للوحة الإدارة',
+    game_back_dash:       'العودة للوحة التحكم',
+    game_prep_q:          'جاري تحضير الأسئلة الملحمية…',
+    game_prep_mascot:     'تجهيز مرافقك الذكي…',
+    game_prep_hard:       'تشفير أصعب التحديات…',
+    game_prep_wait:       'ثوانٍ قليلة وتفتح الساحة…',
+    game_prep_arena:      'تهيئة ساحة المعركة…',
+    game_prep_know:       'هل أنت مستعد لإثبات معرفتك؟',
   },
 
   EN: {
@@ -214,6 +317,16 @@ export const translations = {
     roadmap_title:    'The Core of Development:',
     roadmap_title2:   'Al-Arif Journey',
     roadmap_done:     'Completed Successfully',
+
+    // ROADMAP NODES
+    roadmap_node1_label: 'Global Store',
+    roadmap_node1_desc:  'Cosmetic items and exclusive bundles',
+    roadmap_node2_label: 'Major Tournaments',
+    roadmap_node2_desc:  'Cash prizes and global ranking',
+    roadmap_node3_label: 'Clans System',
+    roadmap_node3_desc:  'Form your team and dominate the board',
+    roadmap_node4_label: 'Mobile App',
+    roadmap_node4_desc:  'Al-Arif in your pocket wherever you are',
 
     // CTA
     cta_title:        'Ready for the Challenge?',
@@ -283,7 +396,6 @@ export const translations = {
     side_soon:            'Coming Soon',
     side_collapse:        'Collapse',
     side_expand:          'Expand',
-    side_logout:          'Logout',
 
     // GAME SETUP
     setup_search_ph:      'Search topics or categories...',
@@ -291,47 +403,149 @@ export const translations = {
     setup_sort_alpha:     'A-Z',
     setup_sort_popular:   'Popular',
     setup_sort_new:       'Newest',
-    setup_launch:         'Launch Game',
-    setup_step_final:     'Final Step — Name Your Session',
-    setup_session_ph:     'Session name...',
     setup_add_team:       'Add Team',
     setup_max_error:      'Maximum 6 categories only',
-    setup_title:          'Game Setup',
-    setup_subtitle:       'Choose topics and categories to start the challenge',
-    setup_next_step:      'Next Step',
-    setup_cats:           'categories',
-    setup_topic_label:    'Current Topic',
-    setup_topic_desc:     'Explore available categories under this topic and choose what fits your challenge.',
-    setup_step_cats:      'Choose Categories (Max 6)',
-    setup_unselect_all:   'Deselect All',
-    setup_select_all:     'Select All',
-    setup_explore:        'Explore',
-    setup_error_cat:      'Please select at least one category',
-    setup_success:        'Session setup successfully!',
-    setup_selected:       'Selected',
+    side_logout:          'Logout',
 
-    // GAME PREP LOADING
-    game_prep_q:          'Loading questions...',
-    game_prep_mascot:     'Abu Al-Areef is getting ready...',
-    game_prep_hard:       'Hard questions incoming!',
-    game_prep_wait:       'The battle begins in moments...',
-    game_prep_arena:      'The arena is ready!',
-    game_prep_know:       'Are you ready?',
-    game_loading:         'Loading...',
-    game_footer:          'Abu Al-Areef',
-    game_error_title:     'Error Loading Session',
-    game_error_sub:       'We could not find the requested session. Please check the link.',
+    // DASHBOARD EXTRA
+    dash_recent_sessions: 'Recent Sessions',
+    dash_last_4:          'Last 4',
+    dash_no_sessions:     'No sessions yet',
+    dash_start_first:     'Start your first game above',
+    dash_session_label:   'Session',
+    dash_welcome_toast:   'Welcome to Al-Arif! 🎉',
+    dash_logout_toast:    'Logged out',
+    logout_success:       'Logged out successfully',
+
+    // GAME SETUP
+    setup_title:          'Game Setup',
+    setup_teams:          'Teams',
+    setup_topics:         'Topics',
+    setup_punishments:    'Punishments',
+    setup_punishments_sub: 'Add a touch of challenge',
+    setup_launch:         'Launch',
+    setup_back:           'Back',
+    setup_edit:           'Edit',
+    setup_categories:     'Categories',
+    setup_preparing:      'Preparing Questions…',
+    setup_wait:           'Please wait a moment',
+    setup_punish_enabled: 'punishments enabled',
+    setup_punish_disabled: 'Disabled',
+    setup_level_easy:     'Easy',
+    setup_level_medium:   'Medium',
+    setup_level_hard:     'Hard',
+    setup_mode_wheel:     'Luck Wheel',
+    setup_mode_voted:     'Opponent Vote',
+    setup_mode_escalating: 'Escalating',
+    setup_mode_mixed:     'Mixed Mode',
+    setup_mode_wheel_desc: 'Random spin from the list',
+    setup_mode_voted_desc: 'Opposing team chooses punishment',
+    setup_mode_escalating_desc: 'Punishment intensifies each round',
+    setup_mode_mixed_desc: 'A mix of the previous modes',
+
+    // SETUP EXTRA
+    setup_subtitle:       'Choose your topics and start',
+    setup_step_final:     'Final Step — Name Your Session',
+    setup_session_ph:     'Session name...',
+    setup_next_step:      'Next Step',
+    setup_error_cat:      'Select at least one category',
+    setup_cats:           'categories',
+    setup_step_cats:      'Categories',
+    setup_select_all:     'Select All',
+    setup_unselect_all:   'Unselect All',
+
+    // AUTH
+    auth_gender:          'Gender',
+    auth_male:            'Male',
+    auth_female:          'Female',
+    auth_birthdate:       'Date of Birth',
+    auth_phone:           'Phone Number',
+    auth_back:            'Back',
+    auth_next:            'Next',
+    auth_submit:          'Submit',
+    auth_username:        'Username',
+    auth_email:           'Email',
+    auth_password:        'Password',
+    auth_login_title:     'Welcome Back',
+    auth_login_sub:       'Sign in to continue your journey',
+    auth_forgot:          'Forgot password?',
+    auth_login_btn:       'Sign In',
+    auth_no_account:      "Don't have an account?",
+    auth_register_btn:    'Register Now',
+
+    // PRICING
+    pricing_title:        'Choose Your Perfect Plan',
+    pricing_sub:          'Start for free today and enjoy unforgettable trivia sessions with friends',
+    pricing_back:         'Back to Home',
+    pricing_popular:      'Most Popular ✨',
+    pricing_queries:      'Have specific questions?',
+    pricing_contact:      'Contact us now',
+    pricing_terms:        'Terms and conditions apply',
+    pricing_forever:      'Forever',
+    pricing_monthly:      'Monthly',
+    pricing_free_name:    'Free',
+    pricing_free_desc:    'Start your journey and try the platform',
+    pricing_free_cta:     'Start for Free',
+    pricing_pro_name:     'Pro',
+    pricing_pro_desc:     'For serious hosts and active groups',
+    pricing_pro_cta:      'Subscribe Now',
+    pricing_team_name:    'Team',
+    pricing_team_desc:    'For companies, schools, and large events',
+    pricing_team_cta:     'Contact Us',
+
+    // FEATURES LIST
+    feat_free_1:          '1 free session',
+    feat_free_2:          'Local play mode',
+    feat_free_3:          '60+ questions available',
+    feat_free_4:          'Up to 2 teams',
+    feat_pro_1:           'Unlimited sessions',
+    feat_pro_2:           'Local & Remote play',
+    feat_pro_3:           '60+ questions + Add yours',
+    feat_pro_4:           'Up to 4 teams',
+    feat_pro_5:           'Ad-free experience',
+    feat_pro_6:           'Custom theme & logo',
+    feat_pro_7:           'Priority support',
+    feat_team_1:          'All Pro features',
+    feat_team_2:          'Up to 10 teams per session',
+    feat_team_3:          'Custom admin panel',
+    feat_team_4:          'Advanced reports & stats',
+    feat_team_5:          'Add company logo',
+    feat_team_6:          'API integration',
+    feat_team_7:          '24/7 support',
+
+    // GAME SESSION
+    game_loading:         'Loading',
+    game_footer:          'All rights reserved',
+    game_error_title:     'Oops, something went wrong',
+    game_error_sub:       'We couldn\'t load the session. Please check your connection or try again.',
     game_retry:           'Retry',
     game_back_dash:       'Back to Dashboard',
+    game_prep_q:          'Preparing epic questions…',
+    game_prep_mascot:     'Setting up your smart mascot…',
+    game_prep_hard:       'Encrypting the toughest challenges…',
+    game_prep_wait:       'Arena opening in a few seconds…',
+    game_prep_arena:      'Initializing the battlefield…',
+    game_prep_know:       'Are you ready to prove your knowledge?',
   }
 } as const
 
 export type TranslationKey = keyof typeof translations['AR']
 
-// Hook — reads lang from Zustand store
-// Usage: const t = useT()  →  t('hero_line1')
 export function createTranslator(lang: Lang) {
   return function t(key: TranslationKey): string {
-    return translations[lang][key] ?? translations['AR'][key] ?? key
+    return (translations[lang] as any)[key] ?? (translations['AR'] as any)[key] ?? key
   }
+}
+
+/**
+ * useTranslator — reactive hook version of createTranslator.
+ * Automatically re-renders when lang changes in the store.
+ *
+ * Usage:
+ *   const t = useTranslator()
+ *   return <p>{t('hero_line1')}</p>
+ */
+export function useTranslator() {
+  const lang = useFeedbackStore(state => state.lang)
+  return useMemo(() => createTranslator(lang), [lang])
 }

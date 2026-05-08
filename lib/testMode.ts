@@ -30,7 +30,7 @@ export async function ensureAuthenticated() {
     }
   }
 
-  if (isTestMode() || true) { // Default to guest mode for ease of use
+  if (isTestMode()) {
     const { data, error } = await supabase.auth.signInAnonymously()
     if (error) return null
     

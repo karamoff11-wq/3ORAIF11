@@ -10,10 +10,10 @@ import GameBoard from '@/components/GameBoard'
 import FightingParticles from '@/components/FightingParticles'
 import { useMascotBehavior } from '@/hooks/useMascotBehavior'
 import Mascot from '@/components/Mascot'
-import { createTranslator } from '@/lib/i18n'
+import { useTranslator } from '@/lib/i18n'
 
 function CinematicLoader({ teams, lang }: { teams: { color: string; name: string }[], lang: 'AR' | 'EN' }) {
-  const t = createTranslator(lang)
+  const t = useTranslator()
   const { accentColor } = useFeedbackStore()
   const [lineIndex, setLineIndex] = useState(0)
   const primaryColor = teams[0]?.color || accentColor || '#8B5CF6'
@@ -96,8 +96,8 @@ export default function GamePage() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   
-  const { lang, mounted, setMounted } = useFeedbackStore()
-  const t = useMemo(() => createTranslator(lang), [lang])
+  const { lang, mounted } = useFeedbackStore()
+  const t = useTranslator()
 
   const {
     setSession, setPhase, setTeams, setQuestions, setCurrentQuestion, setCurrentTeam,
@@ -171,7 +171,7 @@ export default function GamePage() {
 
     load()
     return () => clearTimeout(failsafe)
-  }, [sessionId, supabase, retryCount, setSession, setPhase, setTeams, setQuestions, setCurrentQuestion, setCurrentTeam, setCategories, setScoringConfig, setTimer, t])
+  }, [sessionId, supabase, retryCount, setSession, setPhase, setTeams, setQuestions, setCurrentQuestion, setCurrentTeam, setCategories, setScoringConfig, setTimer])
 
   useEffect(() => {
     if (!sessionId) return
