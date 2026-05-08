@@ -20,7 +20,8 @@ create index if not exists idx_profiles_plan_type on profiles(plan_type);
 -- Allow webhook (service role) to update plan_type
 -- Note: This runs as the service role, so no RLS needed for the webhook
 -- But admins should be able to override manually:
-create policy if not exists "Admins can update any profile plan"
+drop policy if exists "Admins can update any profile plan" on profiles;
+create policy "Admins can update any profile plan"
   on profiles for update
   using (
     (select role from profiles where id = auth.uid()) = 'admin'
