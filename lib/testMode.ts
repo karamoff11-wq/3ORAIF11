@@ -26,7 +26,7 @@ export async function ensureAuthenticated() {
     if (savedId) {
       // We don't sign in again, we just return a mock user object with this ID
       // because the game engine uses user.id
-      return { id: savedId, email: 'guest@persistent.ai' } as any
+      return { id: savedId, email: 'guest@persistent.ai' } as import('@supabase/supabase-js').User
     }
   }
 

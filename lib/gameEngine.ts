@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from '@/lib/supabaseClient'
 import { GameMode, Difficulty } from '@/types/game'
 
@@ -108,8 +109,124 @@ export const gameEngine = {
   /**
    * Generates questions for the session.
    */
-  async generateQuestions(sessionId: string) {
+  async generateQuestions(sessionId: string, customData?: any) {
     const supabase = createClient()
+    
+    // --- SPECIAL HANDLING FOR STUDIO CUSTOM SESSIONS ---
+    if (customData && customData.categories) {
+      console.log(`[GameEngine] Injecting Custom Studio Content for Session: ${sessionId}`)
+      
+      // 0. CLEANUP existing links to prevent conflicts
+      await Promise.all([
+        (supabase.from('session_categories') as any).delete().eq('session_id', sessionId),
+        (supabase.from('session_questions') as any).delete().eq('session_id', sessionId)
+      ])
+
+      // 1. Fetch teams (needed for assignment) - Retry up to 3 times to handle propagation delay
+      let teams: any[] = []
+      for (let i = 0; i < 5; i++) {
+        const { data } = await (supabase.from('teams') as any)
+          .select('id')
+          .eq('session_id', sessionId)
+          .order('created_at')
+        
+        if (data && data.length > 0) {
+          teams = data
+          break
+        }
+        console.log(`[GameEngine] Waiting for teams... attempt ${i+1}`)
+        await new Promise(r => setTimeout(r, 500))
+      }
+      
+      if (teams.length === 0) throw new Error('يرجى إضافة الفرق أولاً (No teams found)')
+
+      // 2. Create/Insert Custom Categories
+      const studioCategories = customData.categories.map((cat: any) => ({
+        id: crypto.randomUUID(), // MUST be valid UUID for DB
+        name: cat.name,
+        icon: cat.icon,
+        created_at: new Date().toISOString()
+      }))
+      
+      const { error: catErr } = await (supabase.from('categories') as any).upsert(studioCategories)
+      if (catErr) throw new Error(`فشل إنشاء الفئات: ${catErr.message}`)
+
+      // 3. Link Categories to Session
+      const sessionCats = studioCategories.map((c: any) => ({
+        session_id: sessionId,
+        category_id: c.id
+      }))
+      const { error: sCatErr } = await (supabase.from('session_categories') as any).insert(sessionCats)
+      if (sCatErr) throw new Error(`فشل ربط الفئات بالجلسة: ${sCatErr.message}`)
+
+      // 4. Create Questions & Assign to Teams
+      const allQuestions: any[] = []
+      const sessionQuestions: any[] = []
+      const questionMap = new Map<string, string>() // Key: "catId_text", Value: qId
+
+      customData.categories.forEach((cat: any, cIdx: number) => {
+        const catId = studioCategories[cIdx].id
+        
+        const diffGroups = {
+          easy: cat.questions.filter((q: any) => q.difficulty === 'easy'),
+          medium: cat.questions.filter((q: any) => q.difficulty === 'medium'),
+          hard: cat.questions.filter((q: any) => q.difficulty === 'hard')
+        }
+
+        teams.forEach((team: any, tIdx: number) => {
+          const diffs = ['easy', 'medium', 'hard'] as const
+          diffs.forEach((d, dIdx) => {
+            const qSource = diffGroups[d]
+            if (!qSource || qSource.length === 0) return
+            
+            const qData = qSource[tIdx % qSource.length]
+            if (qData) {
+              const qKey = `${catId}_${qData.text}`
+              let qId = questionMap.get(qKey)
+
+              if (!qId) {
+                qId = crypto.randomUUID()
+                questionMap.set(qKey, qId)
+                allQuestions.push({
+                  id: qId,
+                  question: qData.text,
+                  answer: qData.answer,
+                  difficulty: d,
+                  media_url: qData.image,
+                  category_id: catId
+                })
+              }
+
+              sessionQuestions.push({
+                session_id: sessionId,
+                question_id: qId,
+                category_id: catId,
+                team_id: team.id,
+                difficulty: d,
+                order_index: (cIdx * 10) + dIdx,
+                used: false
+              })
+            }
+          })
+        })
+      })
+
+      if (sessionQuestions.length === 0) {
+        throw new Error('لم يتم العثور على أسئلة في التصميم الخاص بك.')
+      }
+
+      const { error: qErr } = await (supabase.from('questions') as any).upsert(allQuestions)
+      if (qErr) throw new Error(`فشل حفظ الأسئلة: ${qErr.message}`)
+
+      const { error: sqErr } = await (supabase.from('session_questions') as any).insert(sessionQuestions)
+      if (sqErr) throw new Error(`فشل ربط الأسئلة بالجلسة: ${sqErr.message}`)
+      
+      await (supabase.from('sessions') as any).update({ state: 'playing' }).eq('id', sessionId)
+      return
+    }
+
+    // --- STANDARD LOGIC ---
+    console.log(`[GameEngine] Starting Standard Generation for Session: ${sessionId}`)
 
     // 1. Get Session Info & Host
     const { data: session, error: sessErr } = await (supabase.from('sessions') as any)
@@ -131,8 +248,8 @@ export const gameEngine = {
     
     const sessionIds = userSessions?.map((s: any) => s.id) || []
     
-    let globallyUsedIds = new Set<string>()
-    let globallyUsedTexts = new Set<string>()
+    const globallyUsedIds = new Set<string>()
+    const globallyUsedTexts = new Set<string>()
 
     // Merge DB history with LocalStorage history for maximum reliability
     if (typeof window !== 'undefined') {
@@ -152,13 +269,9 @@ export const gameEngine = {
       })
     }
 
+    // History is filtered silently for the player
     console.log(`[GameEngine] Total history size (DB+Local): ${globallyUsedTexts.size}`)
-    if (typeof window !== 'undefined') {
-      const toast = (await import('react-hot-toast')).default
-      if (globallyUsedTexts.size > 0) {
-        toast.success(`جارٍ تصفية الأسئلة.. استبعاد ${globallyUsedTexts.size} سؤالاً مكرراً.`)
-      }
-    }
+
 
     // 1. Fetch teams and selected categories (with names) in parallel
     const [
@@ -180,7 +293,6 @@ export const gameEngine = {
     if (!teams || teams.length < 2)              throw new Error('يجب إضافة فريقين على الأقل')
 
     const questionsPerTeam = 3          // 1 easy + 1 medium + 1 hard
-    const minPerDiff = teams.length
 
     // 2. Fetch questions for all categories in parallel
     const categoryResults = await Promise.all(
@@ -189,7 +301,7 @@ export const gameEngine = {
         const categoryName = sc.categories?.name || categoryId
 
         // Fetch questions
-        let { data: questions, error } = await (supabase
+        const { data: questions, error } = await (supabase
           .from('questions') as any)
           .select('*')
           .eq('category_id', categoryId)
@@ -197,12 +309,8 @@ export const gameEngine = {
         if (error) throw new Error(error.message)
 
         // FILTER out globally used questions
-        let unusedPool = (questions ?? []).filter((q: any) => !globallyUsedIds.has(q.id))
+        const unusedPool = (questions ?? []).filter((q: any) => !globallyUsedIds.has(q.id))
 
-        // Gather texts of questions already used in this category to tell AI to avoid them
-        const usedTexts = (questions ?? [])
-          .filter((q: any) => globallyUsedIds.has(q.id))
-          .map((q: any) => q.question)
 
         // Normalization helper
         const normalize = (t: string) => t.trim().replace(/[.,!?;:]/g, '').replace(/\s+/g, ' ')

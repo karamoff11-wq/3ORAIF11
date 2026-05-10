@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabaseClient'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import Mascot from '@/components/Mascot'
+import { MascotSettings, MascotPhrase, AnswerPhrase } from '@/types/admin'
+import { MascotState } from '@/types/game'
 
 const CATEGORIES = [
   { id: 'intro',      label: 'الترحيب (Intro)',           state: 'idle' },
@@ -21,8 +23,8 @@ const DEMO_COLORS = ['#FF3B3B', '#3B82F6', '#A855F7', '#22C55E']
 
 export default function AdminMascotPage() {
   const supabase = createClient()
-  const [settings, setSettings] = useState<any>(null)
-  const [phrases, setPhrases] = useState<any[]>([])
+  const [settings, setSettings] = useState<MascotSettings | null>(null)
+  const [phrases, setPhrases] = useState<MascotPhrase[]>([])
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -32,28 +34,28 @@ export default function AdminMascotPage() {
   const [phraseAudioFile, setPhraseAudioFile] = useState<File | null>(null)
 
   // Answer Phrases (shown in QuestionModal after reveal)
-  const [answerPhrases, setAnswerPhrases] = useState<any[]>([])
+  const [answerPhrases, setAnswerPhrases] = useState<AnswerPhrase[]>([])
   const [newAnswerPhrase, setNewAnswerPhrase] = useState<{text: string, category: 'correct'|'wrong'|'punishment'}>({ text: '', category: 'correct' })
   const [addingAnswerCategory, setAddingAnswerCategory] = useState<'correct'|'wrong'|'punishment'|null>(null)
 
-  const [previewState, setPreviewState] = useState<any>('idle')
+  const [previewState, setPreviewState] = useState<MascotState>('idle')
   const [isTalking, setIsTalking] = useState(false)
   const [previewColor, setPreviewColor] = useState('#6B9FD4')
 
   useEffect(() => {
     async function loadData() {
       const [settsRes, phrsRes] = await Promise.all([
-        (supabase.from('mascot_settings') as any).select('*').single(),
-        (supabase.from('mascot_phrases') as any).select('*').order('created_at', { ascending: false }),
+        supabase.from('mascot_settings').select('*').single(),
+        supabase.from('mascot_phrases').select('*').order('created_at', { ascending: false }),
       ])
-      if (settsRes.data) {
-        setSettings(settsRes.data)
-        if (settsRes.data.pebble_preview_color) setPreviewColor(settsRes.data.pebble_preview_color)
+      if ((settsRes as any).data) {
+        setSettings((settsRes as any).data)
+        if ((settsRes as any).data.pebble_preview_color) setPreviewColor((settsRes as any).data.pebble_preview_color)
       }
       if (phrsRes.data) setPhrases(phrsRes.data)
 
       // Load answer phrases
-      const apRes = await (supabase.from('answer_phrases') as any).select('*').order('created_at', { ascending: false })
+      const apRes = await supabase.from('answer_phrases').select('*').order('created_at', { ascending: false })
       if (apRes.data) setAnswerPhrases(apRes.data)
       
       setLoading(false)
@@ -70,7 +72,8 @@ export default function AdminMascotPage() {
     }
   }, [])
 
-  const saveSettings = async (updates: any) => {
+  const saveSettings = async (updates: Partial<MascotSettings>) => {
+    if (!settings) return
     const newSettings = { ...settings, ...updates }
     setSettings(newSettings)
     await (supabase.from('mascot_settings') as any).update(updates).eq('id', settings.id)
@@ -87,9 +90,9 @@ export default function AdminMascotPage() {
     if (phraseAudioFile) {
       const ext = phraseAudioFile.name.split('.').pop()
       const fileName = `${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('audio').upload(fileName, phraseAudioFile)
+      const { error: uploadError } = await (supabase.storage.from('audio') as any).upload(fileName, phraseAudioFile)
       if (uploadError) { toast.error('فشل رفع الصوت'); setUploadingAudio(false); return }
-      const { data: pubData } = supabase.storage.from('audio').getPublicUrl(fileName)
+      const { data: pubData } = (supabase.storage.from('audio') as any).getPublicUrl(fileName)
       audioUrl = pubData.publicUrl
     }
     const { data, error } = await (supabase.from('mascot_phrases') as any).insert([{
@@ -132,12 +135,12 @@ export default function AdminMascotPage() {
     toast.success('تم الحذف')
   }
 
-  const testPhrase = (phrase: any) => {
-    setPreviewState(phrase.category === 'intro' ? 'idle' : phrase.category)
+  const testPhrase = (phrase: MascotPhrase) => {
+    setPreviewState(phrase.category === 'intro' ? 'idle' : phrase.category as MascotState)
     
     const sequence: any[] = []
     
-    const config = settings?.timing_config || {}
+    const config = (settings?.timing_config || {}) as any
     const delayCorrect = Math.min(Math.max(config.correct ?? 350, 150), 700)
     const delayWrong = Math.min(Math.max(config.wrong ?? 250, 100), 600)
     const delayReveal = Math.min(Math.max(config.reveal ?? 400, 200), 900)

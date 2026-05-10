@@ -3,35 +3,33 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
+import { ScoringConfig } from '@/types/admin'
 
 export default function AdminScoringPage() {
   const supabase = createClient()
-  const [config, setConfig] = useState<any>(null)
+  const [config, setConfig] = useState<ScoringConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    (supabase.from('scoring_config') as any).select('*').single().then(({ data }: any) => {
+    supabase.from('scoring_config').select('*').single().then(({ data }) => {
       setConfig(data)
       setLoading(false)
     })
-  }, [])
+  }, [supabase])
 
   async function save() {
     setSaving(true)
-    const { error } = await (supabase
-      .from('scoring_config') as any)
-      .update({
-        easy_points: Number(config.easy_points),
-        medium_points: Number(config.medium_points),
-        hard_points: Number(config.hard_points),
-        default_timer_seconds: Number(config.default_timer_seconds),
-        time_adjustment_seconds: Number(config.time_adjustment_seconds || 5),
-        glow_enabled: Boolean(config.glow_enabled),
-        glow_intensity: Number(config.glow_intensity || 40),
-        flash_start_seconds: Number(config.flash_start_seconds || 15),
-      })
-      .eq('id', config.id)
+    const { error } = await (supabase.from('scoring_config') as any).update({
+      easy_points: config!.easy_points,
+      medium_points: config!.medium_points,
+      hard_points: config!.hard_points,
+      default_timer_seconds: config!.default_timer_seconds,
+      time_adjustment_seconds: config!.time_adjustment_seconds,
+      glow_enabled: config!.glow_enabled,
+      glow_intensity: config!.glow_intensity,
+      flash_start_seconds: config!.flash_start_seconds,
+    }).eq('id', config!.id)
     if (error) { toast.error(error.message) }
     else { toast.success('تم حفظ الإعدادات') }
     setSaving(false)
@@ -71,12 +69,12 @@ export default function AdminScoringPage() {
                   min={1}
                   className="input"
                   style={{ borderColor: color + '44' }}
-                  value={config[key] ?? ''}
-                  onChange={e => setConfig((c: any) => ({ ...c, [key]: e.target.value }))}
+                  value={config?.[key as keyof typeof config] as number | string | undefined ?? ''}
+                  onChange={e => setConfig((c) => c ? ({ ...c, [key]: e.target.value }) : null)}
                 />
               </div>
               <div className="text-3xl font-black shrink-0" style={{ color }}>
-                {config[key]}
+                {config[key as keyof ScoringConfig] as any}
               </div>
             </div>
           ))}
@@ -99,7 +97,7 @@ export default function AdminScoringPage() {
                   type="checkbox"
                   className="w-5 h-5 accent-primary"
                   checked={config.glow_enabled ?? true}
-                  onChange={e => setConfig((c: any) => ({ ...c, glow_enabled: e.target.checked }))}
+                  onChange={e => setConfig((c) => c ? ({ ...c, glow_enabled: e.target.checked }) : null)}
                 />
                 <span className="text-sm">{(config.glow_enabled ?? true) ? 'مفعل' : 'معطل'}</span>
               </div>
@@ -120,7 +118,7 @@ export default function AdminScoringPage() {
                 className="input"
                 style={{ borderColor: '#8b5cf644' }}
                 value={config.glow_intensity ?? 40}
-                onChange={e => setConfig((c: any) => ({ ...c, glow_intensity: e.target.value }))}
+                onChange={e => setConfig((c) => c ? ({ ...c, glow_intensity: parseInt(e.target.value) }) : null)}
               />
             </div>
             <div className="text-3xl font-black shrink-0 text-purple-500">
@@ -141,7 +139,7 @@ export default function AdminScoringPage() {
                 className="input"
                 style={{ borderColor: '#ef444444' }}
                 value={config.flash_start_seconds ?? 15}
-                onChange={e => setConfig((c: any) => ({ ...c, flash_start_seconds: e.target.value }))}
+                onChange={e => setConfig((c) => c ? ({ ...c, flash_start_seconds: parseInt(e.target.value) }) : null)}
               />
             </div>
             <div className="text-3xl font-black shrink-0 text-red-500">

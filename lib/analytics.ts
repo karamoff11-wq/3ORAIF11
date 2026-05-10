@@ -2,7 +2,28 @@
 // Central analytics utility — all PostHog events go through here.
 // This gives us one place to audit, rename, or disable events.
 
-import posthog from 'posthog-js'
+// PostHog is lazily loaded only when the API key is configured.
+// This prevents the ~80KB bundle from loading on pages/sessions that don't need it.
+let _posthog: typeof import('posthog-js').default | null = null
+
+async function getPosthog() {
+  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) return null
+  if (_posthog) return _posthog
+  try {
+    const mod = await import('posthog-js')
+    _posthog = mod.default
+    if (!_posthog.__loaded) {
+      _posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
+        api_host:        process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://eu.i.posthog.com',
+        person_profiles: 'identified_only',
+        capture_pageview: false, // we control this manually
+      })
+    }
+    return _posthog
+  } catch {
+    return null
+  }
+}
 
 // ── Type-safe event definitions ────────────────────────────────────
 export type AnalyticsEvent =
@@ -14,7 +35,7 @@ export type AnalyticsEvent =
   | { event: 'google_signin_clicked';  props: Record<string, never> }
   | { event: 'forgot_password_opened'; props: Record<string, never> }
   | { event: 'signup_completed';       props: { method: 'email' | 'google' } }
-  | { event: 'game_completed';         props: { session_id: string; winner_team: string; total_questions: number } }
+  | { event: 'game_completed';         props: { session_id: string; winner_name: string; winner_score: number; team_count: number } }
 
 // ── Track function ─────────────────────────────────────────────────
 export function track<T extends AnalyticsEvent['event']>(
@@ -22,13 +43,12 @@ export function track<T extends AnalyticsEvent['event']>(
   props: Extract<AnalyticsEvent, { event: T }>['props']
 ) {
   if (typeof window === 'undefined') return
-  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) return  // Skip if not configured
-
-  try {
-    posthog.capture(event, props)
-  } catch (err) {
-    console.warn('[Analytics] Failed to track event:', event, err)
-  }
+  // Fire-and-forget: load posthog lazily, then capture
+  getPosthog().then(ph => {
+    if (!ph) return
+    try { ph.capture(event, props) }
+    catch (err) { console.warn('[Analytics] Failed to track event:', event, err) }
+  })
 }
 
 // ── Identify user on login ─────────────────────────────────────────
@@ -38,17 +58,17 @@ export function identifyUser(userId: string, props?: {
   created_at?: string
 }) {
   if (typeof window === 'undefined') return
-  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) return
-
-  try {
-    posthog.identify(userId, props)
-  } catch (err) {
-    console.warn('[Analytics] Failed to identify user:', err)
-  }
+  getPosthog().then(ph => {
+    if (!ph) return
+    try { ph.identify(userId, props) }
+    catch (err) { console.warn('[Analytics] Failed to identify user:', err) }
+  })
 }
 
 // ── Reset on logout ────────────────────────────────────────────────
 export function resetAnalytics() {
   if (typeof window === 'undefined') return
-  try { posthog.reset() } catch { /* silent */ }
+  if (_posthog) {
+    try { _posthog.reset() } catch { /* silent */ }
+  }
 }

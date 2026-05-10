@@ -1,16 +1,120 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabaseClient'
 import { gameEngine } from '@/lib/gameEngine'
 import toast from 'react-hot-toast'
 import { ensureAuthenticated } from '@/lib/testMode'
 import { Database } from '@/types/database'
+import { isUserAdmin } from '@/lib/admin'
 import { useFeedbackStore } from '@/store/feedbackStore'
 import { useTranslator } from '@/lib/i18n'
 import { track, identifyUser, resetAnalytics } from '@/lib/analytics'
+import CreationsLibrary from '@/components/dashboard/CreationsLibrary'
+
+// ─────────────────────────────────────────────
+// UPGRADE SUCCESS OVERLAY
+// ─────────────────────────────────────────────
+function UpgradeSuccessOverlay({ plan, onDismiss, accentColor }: {
+  plan: string; onDismiss: () => void; accentColor: string
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 6000)
+    return () => clearTimeout(t)
+  }, [onDismiss])
+
+  const planColor = plan === 'team' ? '#06b6d4' : '#7c3aed'
+  const planLabel = plan === 'team' ? 'Team' : 'Pro'
+
+  // Confetti pieces
+  const pieces = useMemo(() =>
+    Array.from({ length: 72 }, (_, i) => ({
+      id: i,
+      x: (i * 137.508) % 100,
+      color: ['#8B5CF6','#EC4899','#3B82F6','#10B981','#F59E0B','#ffffff'][i % 6],
+      sz: (i % 4) * 3 + 6,
+      del: (i % 10) * 0.05,
+      spin: i % 2 === 0 ? 520 : -520,
+    })), []
+  )
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+      style={{ background: 'rgba(4,4,18,0.97)', backdropFilter: 'blur(40px)' }}
+    >
+      {/* Confetti */}
+      <div className="fixed inset-0 pointer-events-none z-[201] overflow-hidden">
+        {pieces.map(p => (
+          <motion.div key={p.id}
+            initial={{ y: -16, x: `${p.x}vw`, opacity: 1, rotate: 0 }}
+            animate={{ y: '115vh', opacity: [1, 1, 0], rotate: p.spin }}
+            transition={{ duration: 2.8 + p.del, delay: p.del, ease: 'easeIn' }}
+            className="absolute top-0 rounded-sm"
+            style={{ width: p.sz, height: p.sz * 0.55, background: p.color }}
+          />
+        ))}
+      </div>
+
+      {/* Ambient glow */}
+      <motion.div
+        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+        transition={{ duration: 4, repeat: Infinity }}
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `radial-gradient(circle at 50% 40%, ${planColor}35 0%, transparent 65%)`, filter: 'blur(60px)' }}
+      />
+
+      <motion.div
+        initial={{ scale: 0.88, y: 30, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        transition={{ delay: 0.15, duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-[202] w-full max-w-sm text-center flex flex-col items-center gap-6"
+      >
+        {/* Badge */}
+        <motion.div
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ delay: 0.3, type: 'spring', stiffness: 280, damping: 18 }}
+          className="px-6 py-2 rounded-full text-sm font-black text-white uppercase tracking-[0.18em]"
+          style={{ background: `linear-gradient(135deg, ${planColor}, #EC4899)`, boxShadow: `0 8px 32px ${planColor}60` }}
+        >
+          {planLabel} Member
+        </motion.div>
+
+        {/* Icon */}
+        <motion.div
+          animate={{ y: [0, -10, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity }}
+          className="text-8xl"
+        >
+          ✨
+        </motion.div>
+
+        <div className="space-y-2">
+          <h2 className="text-3xl font-black text-white leading-tight">
+            اشتراكك فعّال الآن!
+          </h2>
+          <p className="text-base text-white/40 font-medium">
+            مرحباً بك في العُريف {planLabel} — استمتع بكل المميزات الحصرية
+          </p>
+        </div>
+
+        <motion.button
+          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+          onClick={onDismiss}
+          className="w-full py-4 rounded-2xl font-black text-base text-white"
+          style={{ background: `linear-gradient(135deg, ${planColor}, #EC4899)`, boxShadow: `0 12px 40px ${planColor}40` }}
+        >
+          ابدأ الآن ←
+        </motion.button>
+      </motion.div>
+    </motion.div>
+  )
+}
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 type Lang = 'AR' | 'EN'
@@ -140,6 +244,81 @@ const Icon = {
       <line x1="1" y1="10" x2="23" y2="10"/>
     </svg>
   ),
+  PlusCircle: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="16"/>
+      <line x1="8" y1="12" x2="16" y2="12"/>
+    </svg>
+  ),
+}
+
+// ─────────────────────────────────────────────
+// SMART HEADER — premium section branding
+// ─────────────────────────────────────────────
+function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
+  title: string; subtitle?: string; badge?: string; accentColor: string; isRtl: boolean
+}) {
+  return (
+    <div className={`flex flex-col ${isRtl ? 'items-end text-right ml-auto w-fit' : 'items-start text-left w-full'} gap-3 mb-10 group/header`} dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex items-center gap-4">
+        <div className={`flex flex-col ${isRtl ? 'items-end' : 'items-start'}`}>
+          <motion.h2 
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-2xl font-black tracking-tighter" 
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {title}
+          </motion.h2>
+          {subtitle && (
+            <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.3em] mt-1" style={{ color: 'var(--text-secondary)' }}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+        {badge && (
+          <motion.span 
+            initial={{ scale: 0 }}
+            whileInView={{ scale: 1 }}
+            className="px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest text-white shadow-2xl" 
+            style={{ background: `linear-gradient(135deg, ${accentColor}, #6366F1)` }}
+          >
+            {badge}
+          </motion.span>
+        )}
+      </div>
+
+      {/* Elegant Aurora HUD Line */}
+      <div className={`relative ${isRtl ? 'w-56' : 'w-full'} min-w-[140px] h-px overflow-hidden`}>
+        {/* Base Subtle Track */}
+        <div 
+          className="absolute inset-0 opacity-20" 
+          style={{ background: `linear-gradient(${isRtl ? '270deg' : '90deg'}, ${accentColor} 0%, transparent 100%)` }} 
+        />
+
+        {/* Smooth Flowing Pulse */}
+        <motion.div 
+          className="absolute inset-y-0 w-64"
+          animate={{ [isRtl ? 'right' : 'left']: ['-100%', '150%'] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          style={{ 
+            background: `radial-gradient(circle at center, ${accentColor} 0%, transparent 75%)`,
+            opacity: 0.6
+          }}
+        />
+
+        {/* Leading Elegant Dot */}
+        <motion.div 
+          className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full blur-[1px]"
+          animate={{ [isRtl ? 'right' : 'left']: ['-5%', '105%'] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          style={{ backgroundColor: accentColor, boxShadow: `0 0 8px ${accentColor}` }}
+        />
+      </div>
+    </div>
+  )
 }
 
 // ─────────────────────────────────────────────
@@ -147,36 +326,111 @@ const Icon = {
 // ─────────────────────────────────────────────
 function DashboardBackground({ accentColor, themeMode }: { accentColor: string; themeMode: string }) {
   const isLight = themeMode === 'light'
+  
+  // Generate particles for a "living" background
+  const particles = useMemo(() => 
+    Array.from({ length: 22 }, (_, i) => ({
+      id: i,
+      size: Math.random() * 3 + 1,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      duration: Math.random() * 20 + 10,
+      delay: Math.random() * -20,
+    })), []
+  )
+
   return (
-    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-      {/* Grid */}
+    <div 
+      className="fixed inset-0 z-0 pointer-events-none overflow-hidden transition-colors duration-1000"
+      style={{ background: isLight ? '#F9FAFB' : '#020205' }}
+    >
+      {/* 1. Cinematic Film Grain */}
+      <div className={`absolute inset-0 ${isLight ? 'opacity-[0.04]' : 'opacity-[0.06]'} mix-blend-overlay pointer-events-none z-50 noise`} />
+
+      {/* 2. Dynamic Grid with Mask */}
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: `linear-gradient(to right, ${isLight ? 'rgba(139,92,246,0.04)' : 'rgba(255,255,255,0.02)'} 1px, transparent 1px),
-            linear-gradient(to bottom, ${isLight ? 'rgba(139,92,246,0.04)' : 'rgba(255,255,255,0.02)'} 1px, transparent 1px)`,
-          backgroundSize: '80px 80px',
-          maskImage: 'radial-gradient(ellipse 80% 60% at center, black, transparent)',
+          backgroundImage: `linear-gradient(to right, ${accentColor}${isLight ? '20' : '15'} 1px, transparent 1px),
+            linear-gradient(to bottom, ${accentColor}${isLight ? '20' : '15'} 1px, transparent 1px)`,
+          backgroundSize: '60px 60px',
+          maskImage: 'radial-gradient(circle at center, black 30%, transparent 80%)',
         }}
       />
-      {/* Blob 1 */}
+
+      {/* 3. Deep Nebula Blobs */}
       <motion.div
-        animate={{ x: [0, 80, -40, 0], y: [0, -60, 80, 0], scale: [1, 1.2, 0.9, 1] }}
+        animate={{ 
+          x: [0, 80, -40, 0], 
+          y: [0, -60, 80, 0],
+          scale: [1, 1.2, 0.9, 1],
+        }}
+        transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+        className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full"
+        style={{ 
+          background: `radial-gradient(circle, ${accentColor}${isLight ? '25' : '40'}, transparent 70%)`, 
+          filter: 'blur(100px)',
+          opacity: isLight ? 0.8 : 0.7
+        }}
+      />
+      <motion.div
+        animate={{ 
+          x: [0, -100, 60, 0], 
+          y: [0, 80, -100, 0],
+          scale: [1, 1.1, 1.2, 1],
+        }}
         transition={{ duration: 35, repeat: Infinity, ease: 'linear' }}
-        className="absolute top-[-10%] left-[-5%] w-[55%] h-[55%] rounded-full pointer-events-none"
-        style={{ background: `radial-gradient(circle, ${accentColor}${isLight ? '14' : '18'}, transparent 65%)`, filter: 'blur(100px)' }}
+        className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full"
+        style={{ 
+          background: `radial-gradient(circle, #6366F1${isLight ? '20' : '35'}, transparent 70%)`, 
+          filter: 'blur(100px)',
+          opacity: isLight ? 0.7 : 0.6
+        }}
       />
-      {/* Blob 2 */}
       <motion.div
-        animate={{ x: [0, -70, 50, 0], y: [0, 80, -40, 0], scale: [1, 0.8, 1.15, 1] }}
-        transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
-        className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] rounded-full pointer-events-none"
-        style={{ background: `radial-gradient(circle, #3B82F6${isLight ? '10' : '14'}, transparent 65%)`, filter: 'blur(100px)' }}
+        animate={{ 
+          x: [0, 40, -80, 0], 
+          y: [0, 100, -50, 0],
+          scale: [0.8, 1.3, 0.9, 0.8],
+        }}
+        transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+        className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full"
+        style={{ 
+          background: `radial-gradient(circle, ${isLight ? '#F472B6' : '#EC4899'}25, transparent 70%)`, 
+          filter: 'blur(120px)',
+          opacity: 0.4
+        }}
       />
-      {/* Vignette */}
-      {!isLight && (
-        <div className="absolute inset-0" style={{ boxShadow: 'inset 0 0 200px rgba(7,7,26,0.6)' }} />
-      )}
+
+      {/* 4. Interactive Particle Field */}
+      {particles.map((p, i) => (
+        <motion.div
+          key={p.id}
+          initial={{ x: `${p.x}vw`, y: `${p.y}vh`, opacity: 0 }}
+          animate={{ 
+            y: [`${p.y}vh`, `${p.y - 15}vh`, `${p.y}vh`],
+            opacity: [0, isLight ? 0.3 : 0.5, 0],
+            scale: [1, 1.5, 1]
+          }}
+          transition={{ 
+            duration: p.duration, 
+            repeat: Infinity, 
+            delay: p.delay,
+            ease: "easeInOut" 
+          }}
+          className="absolute rounded-full"
+          style={{ 
+            width: p.size, 
+            height: p.size, 
+            background: i % 2 === 0 ? accentColor : (isLight ? '#6366F1' : '#34D399'),
+            boxShadow: isLight ? 'none' : `0 0 10px ${accentColor}60` 
+          }}
+        />
+      ))}
+
+      {/* 5. Vignette & Depth */}
+      <div className={`absolute inset-0 bg-gradient-to-b from-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} via-transparent to-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} ${isLight ? 'opacity-50' : 'opacity-70'}`} />
+      <div className={`absolute inset-0 bg-gradient-to-r from-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} via-transparent to-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} ${isLight ? 'opacity-30' : 'opacity-50'}`} />
     </div>
   )
 }
@@ -205,33 +459,40 @@ function SidebarItem({
       onMouseLeave={() => setShowTip(false)}
     >
       <motion.div
-        whileHover={!locked ? { x: isRtl ? -2 : 2 } : {}}
+        whileHover={!locked ? { x: isRtl ? -4 : 4 } : {}}
         onClick={!locked ? onClick : undefined}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative ${
-          active ? '' : locked ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'
+        className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all relative group ${
+          active ? '' : locked ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:bg-white/[0.02]'
         }`}
         style={{
-          background: active ? `${accentColor}18` : 'transparent',
-          border: active ? `1px solid ${accentColor}25` : '1px solid transparent',
+          background: active ? `${accentColor}12` : 'transparent',
+          border: active ? `1px solid ${accentColor}20` : '1px solid transparent',
           color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-          cursor: locked ? 'not-allowed' : 'pointer',
         }}
       >
         {active && (
-          <div
-            className={`absolute ${isRtl ? 'right-0' : 'left-0'} top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full`}
-            style={{ background: accentColor }}
+          <motion.div
+            layoutId="activeSide"
+            className={`absolute ${isRtl ? 'right-0' : 'left-0'} top-1/2 -translate-y-1/2 w-1 h-8 rounded-full shadow-[0_0_20px_var(--accent-glow)]`}
+            style={{ 
+              background: `linear-gradient(to bottom, ${accentColor}, #6366F1)`,
+              boxShadow: `0 0 20px ${accentColor}80`
+            }}
           />
         )}
-        <span className="shrink-0" style={{ color: active ? accentColor : 'inherit' }}>
+        <span className="shrink-0 transition-transform duration-300 group-hover:scale-110" style={{ color: active ? accentColor : 'inherit' }}>
           <IconComp />
         </span>
         {!collapsed && (
-          <>
-            <span className="text-sm font-semibold flex-1 whitespace-nowrap">{label}</span>
-            {locked && <span className="opacity-40"><Icon.Lock /></span>}
-          </>
+          <motion.span 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-sm font-black flex-1 whitespace-nowrap tracking-tight"
+          >
+            {label}
+          </motion.span>
         )}
+        {!collapsed && locked && <span className="opacity-40"><Icon.Lock /></span>}
       </motion.div>
 
       <AnimatePresence>
@@ -256,63 +517,94 @@ function SidebarItem({
 // ─────────────────────────────────────────────
 function ActionCard({
   title, desc, icon, onClick, loading,
-  accentFrom, accentTo, accentGlow, badge, lang,
+  accentFrom, accentTo, accentGlow, badge, lang, comingSoon,
 }: {
   title: string; desc: string; icon: React.ReactNode;
   onClick: () => void; loading: boolean;
   accentFrom: string; accentTo: string; accentGlow: string;
-  badge: string; lang: Lang;
+  badge: string; lang: Lang; comingSoon?: boolean;
 }) {
   const isRtl = lang === 'AR'
   return (
     <motion.div
-      whileHover={{ y: -4 }}
-      transition={{ duration: 0.2 }}
-      className="relative p-7 rounded-3xl overflow-hidden group flex flex-col justify-between min-h-[260px] glass-card cursor-default"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -12, scale: 1.01 }}
+      onClick={!comingSoon ? onClick : undefined}
+      className={`relative p-10 md:p-14 rounded-[4rem] border overflow-hidden group flex-1 flex flex-col justify-between transition-all duration-700 glass-card min-h-[420px] ${
+        comingSoon ? 'cursor-not-allowed opacity-70 grayscale' : 'cursor-pointer shadow-2xl hover:shadow-[0_40px_100px_-20px_rgba(67,56,202,0.3)]'
+      } ${isRtl ? 'text-right' : 'text-left'}`}
+      style={{ borderColor: 'var(--border-subtle)' }}
     >
-      {/* Top shine on hover */}
-      <div
-        className="absolute top-0 inset-x-0 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-        style={{ background: `linear-gradient(90deg, transparent, ${accentFrom}55, transparent)` }}
+      {/* Corner Aurora Light */}
+      <div 
+        className="absolute -top-32 -right-32 w-64 h-64 blur-[100px] opacity-0 group-hover:opacity-30 transition-all duration-1000" 
+        style={{ backgroundColor: accentFrom }} 
       />
-      {/* Corner glow */}
-      <div
-        className="absolute -bottom-14 w-36 h-36 rounded-full blur-[50px] opacity-15 pointer-events-none transition-opacity duration-500 group-hover:opacity-30"
-        style={{ [isRtl ? 'left' : 'right']: '-2.5rem', background: `radial-gradient(circle, ${accentFrom}, ${accentTo})` }}
-      />
-      {/* Badge */}
-      <div
-        className={`absolute top-5 ${isRtl ? 'left-5' : 'right-5'} text-[9px] font-mono tracking-[0.3em] uppercase`}
-        style={{ color: 'var(--text-tertiary)' }}
-      >
-        {badge}
-      </div>
 
-      <div>
-        <div
-          className="w-13 h-13 w-[52px] h-[52px] rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
-          style={{ background: `${accentFrom}15`, border: `1px solid ${accentFrom}25`, color: accentFrom }}
+      {/* Coming Soon Overlay */}
+      {comingSoon && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-[16px]" style={{ backgroundColor: 'var(--bg-overlay)' }} />
+          <div className="relative z-20 flex flex-col items-center gap-6 text-center">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center border-2 border-indigo-500/20 bg-indigo-500/5 shadow-2xl"
+                 style={{ color: 'var(--text-tertiary)' }}>
+              <Icon.Lock />
+            </div>
+            <span className="px-8 py-2.5 rounded-full border-2 text-[11px] font-black uppercase tracking-[0.5em] text-white"
+                  style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-strong)' }}>
+              {isRtl ? 'قريباً' : 'COMING SOON'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className={`flex flex-col ${isRtl ? 'md:flex-row' : 'md:flex-row-reverse'} items-center gap-12 relative z-10`}>
+        <div 
+          className="w-24 h-24 md:w-28 md:h-28 rounded-[3rem] flex items-center justify-center text-5xl md:text-6xl shadow-2xl transition-all duration-700 group-hover:scale-110 group-hover:rotate-12 shrink-0"
+          style={{ background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`, color: 'white', boxShadow: `0 20px 50px ${accentGlow}` }}
         >
           {icon}
         </div>
-        <h3 className="text-xl font-black mb-1.5 tracking-tight" style={{ color: 'var(--text-primary)' }}>{title}</h3>
-        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)', maxWidth: 200 }}>{desc}</p>
+        <div className="flex-1 space-y-4">
+          <div className={`flex items-center gap-4 justify-center ${isRtl ? 'md:justify-start' : 'md:justify-end'}`}>
+            <h3 className="text-4xl md:text-5xl font-black tracking-tighter leading-none" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+            {badge && (
+              <span className="px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">
+                {badge}
+              </span>
+            )}
+          </div>
+          <p className="text-lg opacity-40 font-medium leading-relaxed max-w-sm mx-auto md:mx-0" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
+        </div>
       </div>
 
-      <button
-        onClick={onClick}
-        disabled={loading}
-        className="mt-5 px-5 py-2.5 rounded-xl font-black text-sm text-white transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 w-fit"
-        style={{
-          background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`,
-          boxShadow: `0 4px 16px ${accentGlow}`,
-        }}
-      >
-        {loading
-          ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          : <span className="flex items-center gap-2">{title} <span style={{ transform: isRtl ? 'none' : 'scaleX(-1)', display: 'inline-block' }}>←</span></span>
-        }
-      </button>
+      <div className={`mt-12 flex ${isRtl ? 'justify-end' : 'justify-start'} relative z-30`}>
+        <button
+          onClick={!comingSoon ? onClick : undefined}
+          disabled={loading || comingSoon}
+          className="px-12 py-4 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] text-white transition-all flex items-center gap-4 hover:scale-[1.05] active:scale-[0.95] disabled:opacity-50"
+          style={{
+            background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`,
+            boxShadow: `0 20px 40px ${accentGlow}`,
+          }}
+        >
+          {loading ? (
+            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <span className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
+              {isRtl ? 'ابدأ النمط' : 'START SESSION'}
+              <motion.span 
+                animate={{ x: isRtl ? [0, -6, 0] : [0, 6, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                style={{ transform: isRtl ? 'none' : 'scaleX(-1)', display: 'inline-block' }}
+              >
+                ←
+              </motion.span>
+            </span>
+          )}
+        </button>
+      </div>
     </motion.div>
   )
 }
@@ -364,14 +656,12 @@ function RecentSessions({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-black" style={{ color: 'var(--text-primary)' }}>
-          {t('dash_recent_sessions')}
-        </h2>
-        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>
-          {t('dash_last_4')}
-        </span>
-      </div>
+      <SmartHeader 
+        title={t('dash_recent_sessions')} 
+        subtitle={t('dash_last_4')}
+        accentColor={accentColor}
+        isRtl={lang === 'AR'}
+      />
 
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -478,8 +768,145 @@ function ThemeToggle() {
 }
 
 // ─────────────────────────────────────────────
-// WELCOME OVERLAY
+// ACHIEVEMENTS SECTION
 // ─────────────────────────────────────────────
+function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: boolean; accentColor: string; profile: Profile | null; router: any }) {
+  const t = useTranslator()
+  
+  const achievements = [
+    {
+      id: 'first_game',
+      icon: '🎯',
+      titleAr: 'البداية القوية',
+      titleEn: 'First Blood',
+      descAr: 'استضف أول جلسة لعب لك.',
+      descEn: 'Host your very first game session.',
+      progress: (profile?.sessions_played ?? 0) >= 1 ? 100 : 0,
+      target: 1,
+    },
+    {
+      id: 'knowledge_king',
+      icon: '👑',
+      titleAr: 'ملك المعرفة',
+      titleEn: 'Knowledge King',
+      descAr: 'استضف ١٠ جلسات لعب كاملة.',
+      descEn: 'Host 10 full game sessions.',
+      progress: Math.min(((profile?.sessions_played ?? 0) / 10) * 100, 100),
+      target: 10,
+    },
+    {
+      id: 'streak_master',
+      icon: '🔥',
+      titleAr: 'سيد الاستمرارية',
+      titleEn: 'Streak Master',
+      descAr: 'حافظ على سلسلة استضافة لـ ٣ أيام.',
+      descEn: 'Maintain a 3-day hosting streak.',
+      progress: Math.min(((profile?.streak ?? 0) / 3) * 100, 100),
+      target: 3,
+    },
+    {
+      id: 'social_star',
+      icon: '🌟',
+      titleAr: 'نجم الحفلة',
+      titleEn: 'Social Star',
+      descAr: 'اجذب مجموع ٥٠ لاعباً لجلساتك.',
+      descEn: 'Have 50 total players join your games.',
+      progress: 20, // Placeholder for total players if not tracked yet
+      target: 50,
+    }
+  ]
+
+  return (
+    <div className="space-y-4">
+      <SmartHeader 
+        title={isRtl ? 'الإنجازات والأوسمة' : 'Achievements & Milestones'} 
+        accentColor={accentColor}
+        isRtl={isRtl}
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {achievements.map((ach, i) => {
+          const isDone = ach.progress >= 100
+          return (
+            <motion.div
+              key={ach.id}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 * i }}
+              className="p-7 rounded-[2.5rem] glass-card relative overflow-hidden group/ach hover:y-[-5px] transition-all duration-500 border border-white/5"
+            >
+              {/* Achievement Corner Glow */}
+              <div 
+                className="absolute -top-16 -right-16 w-32 h-32 blur-[40px] opacity-0 group-hover/ach:opacity-20 transition-opacity duration-700 pointer-events-none" 
+                style={{ backgroundColor: accentColor }} 
+              />
+
+              {/* Background Glow for Completed */}
+              {isDone && (
+                <div 
+                  className="absolute inset-0 opacity-[0.03] pointer-events-none"
+                  style={{ background: `radial-gradient(circle at 50% 120%, ${accentColor}, transparent 70%)` }}
+                />
+              )}
+
+              <div className="flex flex-col gap-4 relative z-10">
+                <div className="flex items-center justify-between">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl transition-all duration-500 ${isDone ? 'bg-white/5 shadow-2xl scale-110' : 'grayscale opacity-20'}`}>
+                    {ach.icon}
+                  </div>
+                  {isDone && (
+                    <div 
+                      className="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-white shadow-xl"
+                      style={{ background: `linear-gradient(135deg, #22c55e, #10B981)` }}
+                    >
+                      {isRtl ? 'مكتمل' : 'UNLOCKED'}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="text-base font-black mb-1 tracking-tight" style={{ color: isDone ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    {isRtl ? ach.titleAr : ach.titleEn}
+                  </h3>
+                  <p className="text-xs leading-relaxed opacity-40 font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    {isRtl ? ach.descAr : ach.descEn}
+                  </p>
+                </div>
+
+                <div className="mt-2 space-y-2">
+                  <div className="flex justify-between text-[9px] font-black uppercase tracking-[0.2em] opacity-40">
+                    <span>{Math.round(ach.progress)}%</span>
+                    <span>{ach.target}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      whileInView={{ width: `${ach.progress}%` }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 1.5, delay: 0.2 + (i * 0.1) }}
+                      className="h-full rounded-full relative"
+                      style={{ background: isDone ? `linear-gradient(90deg, ${accentColor}, #6366F1)` : 'var(--text-tertiary)' }}
+                    >
+                      {isDone && (
+                        <motion.div 
+                          animate={{ x: ['-100%', '100%'] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                          className="absolute inset-0 w-1/2 bg-white/20 skew-x-12"
+                        />
+                      )}
+                    </motion.div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function WelcomeOverlay({ username, onComplete, accentColor }: {
   username: string; onComplete: () => void; accentColor: string
 }) {
@@ -594,19 +1021,49 @@ function MobileBottomNav({
 // MAIN PAGE
 // ─────────────────────────────────────────────
 export default function DashboardPage() {
-  const router   = useRouter()
-  const supabase = useMemo(() => createClient(), [])
+  const router        = useRouter()
+  const searchParams  = useSearchParams()
+  const supabase      = useMemo(() => createClient(), [])
 
-  const [profile,     setProfile]     = useState<Profile | null>(null)
-  const [creating,    setCreating]    = useState<'local' | 'remote' | null>(null)
-  const [collapsed,   setCollapsed]   = useState(false)
+  const [profile,        setProfile]        = useState<Profile | null>(null)
+  const [creating,       setCreating]       = useState<'local' | 'remote' | null>(null)
+  const [collapsed,      setCollapsed]      = useState(false)
+  const [showUpgrade,    setShowUpgrade]    = useState(false)
+  const [upgradedPlan,   setUpgradedPlan]   = useState('pro')
 
-  const { accentColor, lang, mounted, themeMode } = useFeedbackStore()
+  const { 
+    accentColor, 
+    lang, 
+    mounted, 
+    themeMode, 
+    userName, 
+    userAvatar, 
+    userAvatarColor, 
+    userAvatarType, 
+    setUserName 
+  } = useFeedbackStore()
   const t      = useTranslator()
   const isRtl  = lang === 'AR'
   const dir    = isRtl ? 'rtl' : 'ltr'
 
   // Theme, Lang, and Accent are now handled by AppWrapper globally.
+
+  // ── Detect upgrade=success param from Paddle redirect ──
+  useEffect(() => {
+    const upgradeParam = searchParams.get('upgrade')
+    const planParam    = searchParams.get('plan') ?? 'pro'
+    if (upgradeParam === 'success') {
+      setUpgradedPlan(planParam)
+      setShowUpgrade(true)
+      // Clear param from URL so refresh won't re-trigger
+      const url = new URL(window.location.href)
+      url.searchParams.delete('upgrade')
+      url.searchParams.delete('plan')
+      window.history.replaceState({}, '', url.toString())
+      // Track upgrade in analytics
+      track('pro_upgrade_completed', { plan: planParam as 'pro' | 'team', user_id: '' })
+    }
+  }, [searchParams])
 
   // Load profile
   useEffect(() => {
@@ -617,6 +1074,8 @@ export default function DashboardPage() {
         const { data } = await (supabase.from('profiles') as any).select('*').eq('id', user.id).single()
         if (data) {
           setProfile(data)
+          // Sync to store if empty
+          if (!userName && data.display_name) setUserName(data.display_name)
           // Identify user in PostHog for funnel analysis
           identifyUser(user.id, { email: user.email, plan_type: data.plan_type ?? 'free', created_at: data.created_at })
         }
@@ -650,24 +1109,35 @@ export default function DashboardPage() {
 
   if (!mounted) return null
 
-  const displayName = profile?.email?.split('@')[0] ?? '...'
-  const userId      = profile?.id ?? ''
+  const userId        = profile?.id ?? ''
+  const userEmail     = profile?.email ?? ''
+  const isAdmin       = isUserAdmin(userEmail)
+  
+  const finalName     = userName || profile?.display_name || profile?.email?.split('@')[0] || '...'
+  const finalAvatarBg = userAvatarType === 'color' ? userAvatarColor : (profile as any)?.avatar_bg_color || accentColor
+  const finalAvatarType = userAvatarType || (profile?.avatar_url ? 'image' : 'color')
+  const finalAvatarUrl  = userAvatar || profile?.avatar_url
 
   const sidebarItems: { labelKey: Parameters<typeof t>[0]; iconKey: SidebarIconKey; active?: boolean; locked?: boolean; href?: string }[] = [
     { labelKey: 'side_home',         iconKey: 'Home',     active: true, href: '/dashboard' },
     { labelKey: 'side_profile',      iconKey: 'User',     href: '/dashboard/profile' },
     { labelKey: 'side_billing',      iconKey: 'CreditCard', href: '/pricing' },
     { labelKey: 'side_friends',      iconKey: 'Users',    locked: true  },
-    { labelKey: 'side_achievements', iconKey: 'Trophy',   locked: true  },
-    { labelKey: 'side_daily',        iconKey: 'Calendar', locked: true  },
-    { labelKey: 'side_store',        iconKey: 'Store',    locked: true  },
+    { labelKey: 'side_achievements', iconKey: 'Trophy',   href: '/dashboard/achievements' },
+    { labelKey: 'side_daily',        iconKey: 'Calendar', href: '/dashboard/daily' },
+    { labelKey: 'side_store',        iconKey: 'Store',    href: '/dashboard/store' },
     { labelKey: 'side_settings',     iconKey: 'Settings', href: '/dashboard/settings' },
   ]
 
-  return (
+  return (<>
     <div
       className="min-h-screen flex overflow-hidden transition-colors duration-700"
-      style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', direction: dir, fontFamily: 'var(--font-tajawal), var(--font-cairo), sans-serif' }}
+      style={{ 
+        background: 'var(--bg-primary)', 
+        color: 'var(--text-primary)', 
+        direction: dir, 
+        fontFamily: 'var(--font-tajawal), var(--font-cairo), sans-serif' 
+      }}
     >
       {/* Root CSS variables are handled by AppWrapper */}
 
@@ -677,36 +1147,53 @@ export default function DashboardPage() {
 
       {/* ══════════ SIDEBAR (desktop) ══════════ */}
       <motion.aside
-        animate={{ width: collapsed ? 68 : 252 }}
-        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-30 h-screen shrink-0 hidden lg:flex flex-col overflow-hidden"
-        style={{ background: 'var(--sidebar-bg)', borderInlineEnd: '1px solid var(--border-subtle)', backdropFilter: 'blur(32px)' }}
+        animate={{ width: collapsed ? 88 : 280 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-30 h-screen shrink-0 hidden lg:flex flex-col overflow-hidden transition-colors duration-700 border-l border-white/5"
+        style={{ 
+          background: 'var(--sidebar-bg)', 
+          [isRtl ? 'borderLeft' : 'borderRight']: '1px solid var(--border-subtle)',
+          [isRtl ? 'borderRight' : 'borderLeft']: 'none',
+          backdropFilter: 'blur(40px)' 
+        }}
       >
-        {/* Logo */}
-        <div className="flex items-center gap-3 p-4 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        {/* Inner Glass Glow (always on the side touching the main content) */}
+        <div className={`absolute inset-y-0 ${isRtl ? 'left-0' : 'right-0'} w-px bg-gradient-to-b from-transparent via-white/5 to-transparent`} />
+
+        {/* Logo Section */}
+        <div className="flex items-center gap-4 p-7 shrink-0 relative overflow-hidden group/logo">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0"
-            style={{ background: `linear-gradient(135deg, ${accentColor}, #EC4899)`, boxShadow: `0 4px 14px ${accentColor}30` }}
+            className="w-11 h-11 rounded-[1.2rem] flex items-center justify-center text-base font-black text-white shrink-0 overflow-hidden shadow-2xl transition-all duration-500 group-hover/logo:scale-110 group-hover/logo:rotate-6"
+            style={{ 
+              background: `linear-gradient(135deg, ${accentColor}, #EC4899)`, 
+              boxShadow: `0 8px 24px ${accentColor}40` 
+            }}
           >
-            A
+            <div className="w-full h-full relative">
+              {finalAvatarType === 'image' && finalAvatarUrl ? (
+                 <Image src={finalAvatarUrl} alt="Avatar" fill className="object-cover" />
+              ) : (
+                 <div className="w-full h-full flex items-center justify-center">{finalName.charAt(0).toUpperCase()}</div>
+              )}
+            </div>
           </div>
           <AnimatePresence>
             {!collapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="font-black text-lg tracking-tight overflow-hidden whitespace-nowrap"
-                style={{ color: 'var(--text-primary)' }}
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="flex flex-col"
               >
-                العُريف
-              </motion.span>
+                <span className="font-black text-xl tracking-tighter text-white">العُريف</span>
+                <span className="text-[8px] font-black uppercase tracking-[0.3em] opacity-30 text-white">Platform v1.2</span>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 p-2.5 space-y-0.5 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden no-scrollbar">
           {sidebarItems.map((item, i) => (
             <SidebarItem
               key={i}
@@ -722,158 +1209,291 @@ export default function DashboardPage() {
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-2.5 mb-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+        {/* Sidebar Footer Branding */}
+        <div className="p-4 space-y-4">
+          {/* Logout */}
           <motion.div
-            whileHover={{ x: isRtl ? -3 : 3 }}
+            whileHover={{ backgroundColor: 'rgba(239,68,68,0.1)' }}
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
-            style={{ color: 'rgba(239,68,68,0.6)' }}
+            className="flex items-center gap-4 px-4 py-3 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-red-500/10 group"
           >
-            <span className="shrink-0"><Icon.LogOut /></span>
-            {!collapsed && <span className="text-sm font-semibold">{t('side_logout')}</span>}
+            <span className="shrink-0 text-red-500/40 group-hover:text-red-500 transition-colors"><Icon.LogOut /></span>
+            {!collapsed && <span className="text-xs font-black uppercase tracking-widest text-red-500/40 group-hover:text-red-500">{t('side_logout')}</span>}
           </motion.div>
-        </div>
 
-        {/* Collapse */}
-        <button
-          onClick={() => setCollapsed(p => !p)}
-          className="p-3 flex items-center justify-center transition-all hover:opacity-60 shrink-0"
-          style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
-        >
-          {isRtl
-            ? (collapsed ? <Icon.ChevronLeft /> : <Icon.ChevronRight />)
-            : (collapsed ? <Icon.ChevronRight /> : <Icon.ChevronLeft />)
-          }
-        </button>
+          {/* Version / Brand */}
+          {!collapsed && (
+            <div className="px-4 py-2 border-t border-white/5 pt-4">
+              <div className="flex items-center justify-between opacity-20">
+                <span className="text-[8px] font-black uppercase tracking-widest">{isRtl ? 'إنتاج العُريف' : 'BY AL-AREEF'}</span>
+                <div className="flex gap-1">
+                  <div className="w-1 h-1 rounded-full bg-white" />
+                  <div className="w-1 h-1 rounded-full bg-white" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Collapse Trigger (Floating Style) */}
+          <button
+            onClick={() => setCollapsed(p => !p)}
+            className="w-full p-3 flex items-center justify-center transition-all hover:bg-white/5 rounded-2xl group"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            <motion.div
+              animate={{ rotate: collapsed ? 180 : 0 }}
+              className="group-hover:scale-125 transition-transform"
+            >
+              {isRtl ? <Icon.ChevronLeft /> : <Icon.ChevronLeft />}
+            </motion.div>
+          </button>
+        </div>
       </motion.aside>
 
       {/* ══════════ MAIN CONTENT ══════════ */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0 relative z-10">
 
-        {/* Top nav */}
-        <nav
-          className="sticky top-0 z-40 flex items-center justify-between px-5 md:px-8 py-3.5 shrink-0"
-          style={{ background: 'var(--nav-bg)', backdropFilter: 'blur(24px)', borderBottom: '1px solid var(--border-subtle)' }}
-        >
-          <div className="relative max-w-xs w-full hidden md:flex items-center">
-            <div className="absolute" style={{ [isRtl ? 'right' : 'left']: '14px', color: 'var(--text-tertiary)' }}>
-              <Icon.Search />
-            </div>
-            <input
-              type="text"
-              placeholder={t('dash_search_ph')}
-              className="w-full py-2.5 rounded-2xl text-sm outline-none transition-all"
-              style={{
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border-card)',
-                color: 'var(--text-primary)',
-                paddingInlineStart: '40px',
-                paddingInlineEnd: '14px',
-              }}
-            />
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <ThemeToggle />
-            <div className="w-px h-5 hidden sm:block" style={{ background: 'var(--border-card)' }} />
-            <div className="hidden sm:block" style={{ textAlign: isRtl ? 'right' : 'left' }}>
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{displayName}</p>
-                {(profile as any)?.plan_type && (profile as any).plan_type !== 'free' && (
-                  <div className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest text-white"
-                    style={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>
-                    PRO
-                  </div>
-                )}
-              </div>
-              <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>
-                {t('dash_level')} 1
-              </p>
-            </div>
-            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0" style={{ border: `2px solid ${accentColor}28` }}>
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}`} alt="Avatar" className="w-full h-full object-cover" />
-            </div>
-          </div>
-        </nav>
 
         {/* Page body */}
-        <main className="flex-1 p-5 md:p-8 space-y-7 max-w-5xl w-full mx-auto pb-24 lg:pb-8">
+        <main className="flex-1 p-5 md:p-8 space-y-10 max-w-5xl w-full mx-auto pb-24 lg:pb-8">
 
-          {/* Welcome header */}
+          {/* ── Cinematic Aurora Command Center ── */}
           <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-            className="relative overflow-hidden rounded-3xl p-7 md:p-9 glass-card"
+            initial={{ opacity: 0, scale: 0.98, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative overflow-hidden rounded-[3rem] p-px group mb-8"
+            style={{ 
+              background: `linear-gradient(135deg, ${accentColor}40, transparent, var(--border-strong))`,
+              boxShadow: '0 30px 80px -20px rgba(0,0,0,0.3)'
+            }}
           >
-            <div
-              className="absolute top-0 inset-x-0 pointer-events-none"
-              style={{ height: 180, background: `radial-gradient(ellipse at 50% -20%, ${accentColor}18 0%, transparent 65%)` }}
+            {/* Ambient Aurora Glow (Behind Card) */}
+            <div className="absolute -top-20 -left-20 w-48 h-48 blur-[80px] opacity-20 pointer-events-none" style={{ backgroundColor: accentColor }} />
+            <div className="absolute -bottom-20 -right-20 w-48 h-48 blur-[80px] opacity-20 pointer-events-none" style={{ backgroundColor: '#6366F1' }} />
+
+            {/* HUD Scanning Layer */}
+            <motion.div 
+              animate={{ x: isRtl ? ['120%', '-120%'] : ['-120%', '120%'] }}
+              transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 w-1/2 skew-x-12 pointer-events-none z-10"
+              style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent)' }}
             />
-            <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.35em] mb-1.5" style={{ color: accentColor }}>
-                  {isRtl ? 'مرحباً بعودتك' : 'Welcome back'}
-                </p>
-                <h1 className="text-2xl md:text-3xl font-black tracking-tight leading-snug mb-1.5">
-                  {t('dash_welcome')},{' '}
-                  <span className="text-transparent bg-clip-text" style={{ backgroundImage: `linear-gradient(135deg, ${accentColor}, #EC4899)` }}>
-                    {displayName}
-                  </span>{' '}
-                  👋
-                </h1>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('dash_ready')}</p>
+
+            <div className={`relative overflow-hidden rounded-[2.9rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-10 transition-all duration-700 ${isRtl ? 'md:flex-row-reverse' : 'md:flex-row'}`} 
+                 style={{ background: 'var(--bg-secondary)', backdropFilter: 'blur(60px)' }}>
+              
+              {/* Complex Background HUD Pattern */}
+              <div className={`absolute inset-0 pointer-events-none select-none opacity-20`} style={{ color: 'var(--text-tertiary)', opacity: 0.05 }}>
+                <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <defs>
+                    <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                      <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.1"/>
+                    </pattern>
+                  </defs>
+                  <rect width="100" height="100" fill="url(#grid)" />
+                  <circle cx={isRtl ? "10" : "90"} cy="10" r="20" stroke="currentColor" strokeWidth="0.05" fill="none" />
+                </svg>
               </div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <StatPill
-                  iconEl={<Icon.Flame />}
-                  value={0}
-                  label={t('dash_streak')}
-                />
-                <StatPill
-                  iconEl={<Icon.Coin />}
-                  value={0}
-                  label={t('dash_coins')}
-                />
+
+              {/* 1. Identity & Bio-Sync Block */}
+              <div className={`flex flex-col items-center md:items-${isRtl ? 'end' : 'start'} gap-6 relative z-20 shrink-0`}>
+                {/* Multi-Ring Avatar HUD */}
+                <div className="relative">
+                  <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    className="absolute -inset-4 rounded-full border border-indigo-500/10 border-dashed" 
+                  />
+                  <motion.div 
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                    className="absolute -inset-8 rounded-full border border-indigo-500/5 border-dotted" 
+                  />
+                  
+                  <div className="relative p-1.5 rounded-full border-2 border-indigo-500/10 shadow-[0_0_40px_rgba(99,102,241,0.1)]">
+                    <div className="w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden shadow-2xl relative" style={{ backgroundColor: finalAvatarBg }}>
+                      {finalAvatarType === 'image' && finalAvatarUrl ? (
+                        <Image src={finalAvatarUrl} alt="Avatar" fill className="object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-4xl font-black text-white">
+                          {finalName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      {/* Inner Glass Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+                    </div>
+                    {/* Floating Level Hub */}
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg text-white text-[9px] font-black tracking-widest shadow-2xl border border-white/10"
+                         style={{ backgroundColor: '#1E1B4B', boxShadow: `0 8px 20px rgba(0,0,0,0.5)` }}>
+                      {isRtl ? 'المستوى ٢٤' : 'LVL 24'}
+                    </div>
+                  </div>
+                </div>
+
               </div>
+
+              {/* 2. Massive Greeting Hub */}
+              <div className={`flex-1 flex flex-col items-center md:items-${isRtl ? 'end' : 'start'} text-center md:text-${isRtl ? 'right' : 'left'} space-y-4 relative z-20`}>
+                <div className="space-y-1">
+                  <motion.span 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400/60"
+                  >
+                    {isRtl ? 'مرحباً بك مجدداً' : 'WELCOME BACK, ELITE'}
+                  </motion.span>
+                  <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-tight" style={{ color: 'var(--text-primary)' }}>
+                    {finalName}
+                  </h1>
+                </div>
+
+              </div>
+
+              {/* 3. Liquid Credit Portfolio Portfolio */}
+              <motion.div 
+                whileHover={{ scale: 1.02, y: -4 }}
+                onClick={() => router.push('/pricing')}
+                className="relative group/credits cursor-pointer z-20 shrink-0"
+              >
+                <div className="p-6 md:p-8 rounded-[2.5rem] border transition-all duration-700 relative overflow-hidden flex flex-col items-center md:items-start min-w-[240px]"
+                     style={{ background: 'var(--bg-card)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-card)' }}>
+                  
+                  {/* Portfolio Glow Corner */}
+                  <div className={`absolute top-0 ${isRtl ? 'left-0' : 'right-0'} p-4 text-indigo-500/20 group-hover/credits:text-indigo-500/40 transition-colors`}>
+                    <Icon.PlusCircle />
+                  </div>
+
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400/40 mb-1">
+                    {isRtl ? 'رصيد الجلسات' : 'SESSION CREDITS'}
+                  </span>
+                  
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-5xl font-black tracking-tighter" style={{ color: 'var(--text-primary)' }}>
+                      {isAdmin ? '∞' : (profile?.session_credits ?? 0)}
+                    </span>
+                    <span className="text-xs font-black opacity-30 uppercase tracking-[0.15em]" style={{ color: 'var(--text-secondary)' }}>
+                      {isAdmin ? (isRtl ? 'مشرف' : 'ELITE') : (isRtl ? 'جلسة' : 'SESS')}
+                    </span>
+                  </div>
+
+                </div>
+              </motion.div>
             </div>
           </motion.div>
 
-          {/* Action cards */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
-              <ActionCard
-                title={t('dash_local_title')}
-                desc={t('dash_local_desc')}
-                icon={<Icon.Gamepad />}
-                badge="MOD 01"
-                loading={creating === 'local'}
-                onClick={() => handleCreate('local')}
-                accentFrom={accentColor}
-                accentTo="#7C3AED"
-                accentGlow={`${accentColor}40`}
-                lang={lang}
-              />
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
-              <ActionCard
-                title={t('dash_remote_title')}
-                desc={t('dash_remote_desc')}
-                icon={<Icon.Globe />}
-                badge="MOD 02"
-                loading={creating === 'remote'}
-                onClick={() => handleCreate('remote')}
-                accentFrom="#F59E0B"
-                accentTo="#D97706"
-                accentGlow="rgba(245,158,11,0.35)"
-                lang={lang}
-              />
-            </motion.div>
-          </section>
 
-          {/* Recent sessions */}
-          <RecentSessions lang={lang} accentColor={accentColor} userId={userId} router={router} />
+
+
+
+
+
+          {/* Game Modes Section */}
+          <div className="space-y-4">
+            <SmartHeader 
+              title={isRtl ? 'أنماط اللعب' : 'Game Modes'} 
+              accentColor={accentColor}
+              isRtl={isRtl}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+              <motion.div 
+                className="h-full flex"
+                initial={{ opacity: 0, y: 18 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <ActionCard
+                  title={t('dash_local_title')}
+                  desc={t('dash_local_desc')}
+                  icon={<Icon.Gamepad />}
+                  loading={creating === 'local'}
+                  onClick={() => handleCreate('local')}
+                  accentFrom={accentColor}
+                  accentTo="#7C3AED"
+                  accentGlow={`${accentColor}40`}
+                  badge=""
+                  lang={lang}
+                />
+              </motion.div>
+              <motion.div 
+                className="h-full flex"
+                initial={{ opacity: 0, y: 18 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                transition={{ delay: 0.16, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <ActionCard
+                  title={t('dash_remote_title')}
+                  desc={t('dash_remote_desc')}
+                  icon={<Icon.Globe />}
+                  loading={creating === 'remote'}
+                  onClick={() => handleCreate('remote')}
+                  accentFrom="#F59E0B"
+                  accentTo="#D97706"
+                  accentGlow="#F59E0B40"
+                  badge=""
+                  lang={lang}
+                  comingSoon={true}
+                />
+              </motion.div>
+            </div>
+          </div>
+
+          {/* Daily Challenge Section (WIDE) */}
+          <div className="space-y-4">
+            <SmartHeader 
+              title={isRtl ? 'تحدي اليوم' : 'Today\'s Challenge'} 
+              accentColor={accentColor}
+              isRtl={isRtl}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -5 }}
+              onClick={() => router.push('/dashboard/daily')}
+              className={`relative p-8 md:p-10 rounded-[3rem] overflow-hidden group cursor-pointer border border-white/10 glass-card ${isRtl ? 'text-right' : 'text-left'}`}
+            >
+              <div 
+                className="absolute inset-0 opacity-20 transition-opacity group-hover:opacity-30"
+                style={{ background: `linear-gradient(90deg, ${accentColor}, #F59E0B)` }}
+              />
+              <div className={`relative z-10 flex flex-col ${isRtl ? 'md:flex-row' : 'md:flex-row-reverse'} items-center justify-between gap-8`}>
+                <div className={`flex-1 text-center ${isRtl ? 'md:text-right' : 'md:text-left'}`}>
+                  <div 
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 mx-auto ${isRtl ? 'md:mr-0 md:ml-auto' : 'md:ml-0 md:mr-auto'}`}
+                    style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#F59E0B' }}
+                  >
+                    <Icon.Trophy />
+                  </div>
+                  <h3 className="text-3xl md:text-4xl font-black mb-3 tracking-tight">
+                    {isRtl ? 'اختبر حدود ذكائك الآن' : 'Test Your Limits Now'}
+                  </h3>
+                  <p className="text-sm md:text-base opacity-60 font-medium max-w-xl">
+                    {isRtl 
+                      ? 'سؤال واحد فائق الصعوبة يومياً. هل تملك الشجاعة الكافية لمواجهة تحدي اليوم؟ مكافآت ضخمة بانتظارك.' 
+                      : 'One extremely difficult question per day. Do you have the courage to face today\'s challenge? Massive rewards await.'}
+                  </p>
+                </div>
+                
+                <div className="flex flex-col items-center gap-4">
+                  <div className="px-8 py-4 rounded-2xl bg-white text-black font-black uppercase tracking-widest text-xs shadow-xl group-hover:scale-110 transition-transform">
+                    {isRtl ? 'ابدأ الآن' : 'Start Now'}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: '#F59E0B' }}>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] animate-pulse" />
+                    {isRtl ? 'فرصة واحدة فقط' : 'Only One Chance'}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Custom Creations Library */}
+          <CreationsLibrary isRtl={isRtl} lang={lang} />
+
+          {/* Achievements Section */}
+          <AchievementsSection isRtl={isRtl} accentColor={accentColor} profile={profile} router={router} />
+
 
         </main>
       </div>
@@ -881,5 +1501,16 @@ export default function DashboardPage() {
       {/* Mobile bottom nav */}
       <MobileBottomNav accentColor={accentColor} onLogout={handleLogout} />
     </div>
-  )
+
+    {/* ── UPGRADE SUCCESS OVERLAY ── */}
+    <AnimatePresence>
+      {showUpgrade && (
+        <UpgradeSuccessOverlay
+          plan={upgradedPlan}
+          accentColor={accentColor}
+          onDismiss={() => setShowUpgrade(false)}
+        />
+      )}
+    </AnimatePresence>
+  </>)
 }

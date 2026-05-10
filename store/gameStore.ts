@@ -39,6 +39,10 @@ interface GameActions {
   resetGame: () => void
   setIsTalking: (isTalking: boolean) => void
   incrementThinkingCount: () => void
+  setIsHost: (isHost: boolean) => void
+  setPlayerTeamId: (id: string | null) => void
+  setBuzzedTeamId: (id: string | null) => void
+  setBroadcastChannel: (ch: import('@supabase/supabase-js').RealtimeChannel | null) => void
 }
 
 export const useGameStore = create<GameState & GameActions>((set) => ({
@@ -69,6 +73,10 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     flash_start_seconds: 15
   },
   thinkingCount: 0,
+  isHost: false,
+  playerTeamId: null,
+  buzzedTeamId: null,
+  broadcastChannel: null,
 
   setSession: (sessionId, mode) => set({ sessionId, mode }),
   setPhase: (phase) => set({ phase }),
@@ -107,8 +115,13 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     mascotState: 'idle',
     isTalking: false,
     selectedQuestion: null,
-    thinkingCount: 0
+    thinkingCount: 0,
+    buzzedTeamId: null
   }),
   setIsTalking: (isTalking) => set({ isTalking }),
-  incrementThinkingCount: () => set((state) => ({ thinkingCount: state.thinkingCount + 1 }))
+  incrementThinkingCount: () => set((state) => ({ thinkingCount: state.thinkingCount + 1 })),
+  setIsHost: (isHost) => set({ isHost }),
+  setPlayerTeamId: (playerTeamId) => set({ playerTeamId }),
+  setBuzzedTeamId: (buzzedTeamId) => set({ buzzedTeamId }),
+  setBroadcastChannel: (broadcastChannel) => set({ broadcastChannel })
 }))

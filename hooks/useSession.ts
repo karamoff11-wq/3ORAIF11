@@ -70,9 +70,9 @@ export function useSession() {
     }
   }
 
-  const generateQuestions = async (sessionId: string) => {
+  const generateQuestions = async (sessionId: string, customData?: any) => {
     try {
-      await gameEngine.generateQuestions(sessionId)
+      await gameEngine.generateQuestions(sessionId, customData)
     } catch (error: any) {
       toast.error('خطأ في توليد الأسئلة: ' + error.message)
       throw error

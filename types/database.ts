@@ -14,22 +14,46 @@ export interface Database {
           id: string
           email: string | null
           role: string
+          plan_type: 'free' | 'pro' | 'team'
           created_at: string
           free_sessions_used: boolean
+          display_name?: string
+          avatar_url?: string | null
+          sessions_played?: number
+          streak?: number
+          session_credits?: number
+          avatar_type?: string
+          avatar_bg_color?: string
         }
         Insert: {
           id: string
           email?: string | null
           role?: string
+          plan_type?: 'free' | 'pro' | 'team'
           created_at?: string
           free_sessions_used?: boolean
+          display_name?: string
+          avatar_url?: string | null
+          sessions_played?: number
+          streak?: number
+          session_credits?: number
+          avatar_type?: string
+          avatar_bg_color?: string
         }
         Update: {
           id?: string
           email?: string | null
           role?: string
+          plan_type?: 'free' | 'pro' | 'team'
           created_at?: string
           free_sessions_used?: boolean
+          display_name?: string
+          avatar_url?: string | null
+          sessions_played?: number
+          streak?: number
+          session_credits?: number
+          avatar_type?: string
+          avatar_bg_color?: string
         }
       }
       subscriptions: {
@@ -38,6 +62,7 @@ export interface Database {
           user_id: string
           paddle_subscription_id: string | null
           status: string
+          plan_type: 'free' | 'pro' | 'team'
           current_period_end: string | null
           created_at: string
         }
@@ -46,6 +71,7 @@ export interface Database {
           user_id: string
           paddle_subscription_id?: string | null
           status: string
+          plan_type?: 'free' | 'pro' | 'team'
           current_period_end?: string | null
           created_at?: string
         }
@@ -54,6 +80,7 @@ export interface Database {
           user_id?: string
           paddle_subscription_id?: string | null
           status?: string
+          plan_type?: 'free' | 'pro' | 'team'
           current_period_end?: string | null
           created_at?: string
         }

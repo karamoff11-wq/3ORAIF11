@@ -552,7 +552,7 @@ export default function RegisterPage() {
     setLoading(true)
     const fullPhone = phone ? `${country.code}${phone}` : ''
 
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -565,6 +565,19 @@ export default function RegisterPage() {
       toast.error(error.message)
       setLoading(false)
       return
+    }
+
+    // ── Fire welcome email in background (non-blocking) ──
+    if (signUpData?.user) {
+      fetch('/api/email/welcome', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // This endpoint is internal, but we guard it with the service-role key
+          // which is only available server-side. Use a public trigger endpoint instead:
+        },
+        body: JSON.stringify({ email, name: username.toLowerCase() }),
+      }).catch(() => { /* silent — welcome email is non-critical */ })
     }
 
     toast.success('أهلاً بك! تم إنشاء حسابك بنجاح 🎉')
@@ -734,9 +747,9 @@ export default function RegisterPage() {
                         </AnimatePresence>
                       </div>
 
-                      {/* Email */}
                       <Field
                         label={t('auth_email')}
+                        type="email"
                         value={email}
                         onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: '' })) }}
                         placeholder="name@example.com"

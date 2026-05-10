@@ -1,0 +1,968 @@
+'use client'
+// ─── app/admin/themes/page.tsx ─────────────────────────────────────────────────
+// Admin control panel to preview, apply, and generate special links for all themes.
+//
+// ⚠️  Add your own admin auth guard at the top of this component (check session
+//     role === 'admin' from Supabase, redirect otherwise).
+//
+// Usage:
+//   Navigate to /admin/themes in your browser.
+//   The panel lives outside the user-facing dashboard so admins can test freely.
+
+import { useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useTheme } from '@/context/ThemeContext'
+import { themes, themesList } from '@/lib/themes'
+import { Theme, ThemeId } from '@/types/theme'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function buildLink(baseUrl: string, themeId: ThemeId, path = '/dashboard') {
+  return `${baseUrl}${path}?theme=${themeId}`
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+function ColorSwatch({ color }: { color: string }) {
+  return (
+    <div
+      className="w-5 h-5 rounded-full border border-white/10 flex-shrink-0"
+      style={{ backgroundColor: color }}
+      title={color}
+    />
+  )
+}
+
+function CopyButton({
+  label,
+  value,
+  copyId,
+  activeCopyId,
+  onCopy,
+}: {
+  label: string
+  value: string
+  copyId: string
+  activeCopyId: string | null
+  onCopy: (id: string, value: string) => void
+}) {
+  const copied = activeCopyId === copyId
+  return (
+    <button
+      onClick={() => onCopy(copyId, value)}
+      className="flex-1 py-1.5 rounded-xl text-xs font-medium transition-all border"
+      style={{
+        borderColor: copied ? '#22c55e44' : '#ffffff11',
+        color: copied ? '#22c55e' : '#9CA3AF',
+        backgroundColor: copied ? '#22c55e11' : '#ffffff07',
+      }}
+    >
+      {copied ? '✓ Copied' : label}
+    </button>
+  )
+}
+
+// ─── Theme Card ────────────────────────────────────────────────────────────────
+function ThemeCard({
+  t,
+  isActive,
+  previewName,
+  activeCopyId,
+  onApply,
+  onCopy,
+}: {
+  t: Theme
+  isActive: boolean
+  previewName: string
+  activeCopyId: string | null
+  onApply: (id: ThemeId) => void
+  onCopy: (id: string, value: string) => void
+}) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative rounded-2xl border overflow-hidden transition-shadow duration-300"
+      style={{
+        backgroundColor: isActive ? `${t.colors.primary}12` : t.colors.surface,
+        borderColor: isActive ? t.colors.primary : t.colors.border,
+        boxShadow: isActive ? t.colors.glow : 'none',
+      }}
+    >
+      {/* Active badge */}
+      {isActive && (
+        <div
+          className="absolute top-3 end-3 text-[10px] font-bold px-2 py-0.5 rounded-full"
+          style={{ backgroundColor: t.colors.primary, color: '#fff' }}
+        >
+          ACTIVE
+        </div>
+      )}
+
+      <div className="p-5 flex flex-col gap-4">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+            style={{ backgroundColor: `${t.colors.primary}22` }}
+          >
+            {t.emoji}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white leading-tight">{t.name}</p>
+            <p className="text-xs mt-0.5" style={{ color: t.colors.primary }}>
+              {t.nameAr}
+            </p>
+          </div>
+        </div>
+
+        {/* Colour palette */}
+        <div className="flex items-center gap-2">
+          {[t.colors.primary, t.colors.primaryLight, t.colors.secondary, t.colors.accent,
+            t.colors.surface, t.colors.border].map((c, i) => (
+            <ColorSwatch key={i} color={c} />
+          ))}
+        </div>
+
+        {/* Greeting preview */}
+        <div
+          className="rounded-xl p-3"
+          style={{
+            backgroundColor: `${t.colors.primary}0D`,
+            borderLeft: `3px solid ${t.colors.primary}`,
+          }}
+        >
+          <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: t.colors.textMuted }}>
+            Greeting preview
+          </p>
+          <p className="text-sm font-semibold" style={{ color: t.colors.text }}>
+            {t.greeting(previewName || null)}
+          </p>
+          <p className="text-xs mt-1 opacity-80" style={{ color: t.colors.primary }}>
+            {t.greetingAr(previewName || null)}
+          </p>
+          {t.subGreeting && (
+            <p className="text-[11px] mt-1.5" style={{ color: t.colors.textMuted }}>
+              {t.subGreeting}
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col gap-2">
+          {/* Apply button */}
+          <button
+            onClick={() => onApply(t.id)}
+            disabled={isActive}
+            className="w-full py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97] disabled:cursor-default"
+            style={{
+              background: isActive
+                ? `${t.colors.primary}22`
+                : `linear-gradient(135deg, ${t.colors.primary}, ${t.colors.accent})`,
+              color: isActive ? t.colors.primary : '#fff',
+              boxShadow: isActive ? 'none' : `0 4px 16px ${t.colors.primary}44`,
+            }}
+          >
+            {isActive ? '✓ Currently Active' : 'Apply Theme'}
+          </button>
+
+          {/* Copy link buttons */}
+          <div className="flex gap-2">
+            <CopyButton
+              label="🏠 Home Link"
+              copyId={`home-${t.id}`}
+              value={buildLink(origin, t.id, '/')}
+              activeCopyId={activeCopyId}
+              onCopy={onCopy}
+            />
+            <CopyButton
+              label="📋 Dashboard Link"
+              copyId={`dash-${t.id}`}
+              value={buildLink(origin, t.id, '/dashboard')}
+              activeCopyId={activeCopyId}
+              onCopy={onCopy}
+            />
+          </div>
+
+          {/* Raw URL display */}
+          <p
+            className="text-[10px] px-3 py-1.5 rounded-lg font-mono truncate"
+            style={{ backgroundColor: `${t.colors.border}50`, color: t.colors.textMuted }}
+          >
+            ?theme={t.id}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function AdminThemesPage() {
+  const { themeId, theme, setTheme } = useTheme()
+  const [previewName, setPreviewName] = useState('Ahmed')
+  const [activeCopyId, setActiveCopyId] = useState<string | null>(null)
+  const [resetConfirm, setResetConfirm] = useState(false)
+
+  const handleCopy = useCallback((id: string, value: string) => {
+    navigator.clipboard.writeText(value).catch(() => {})
+    setActiveCopyId(id)
+    setTimeout(() => setActiveCopyId(null), 2200)
+  }, [])
+
+  const handleReset = () => {
+    if (!resetConfirm) { setResetConfirm(true); setTimeout(() => setResetConfirm(false), 3000); return }
+    setTheme('default')
+    setResetConfirm(false)
+  }
+
+  return (
+    <div
+      className="min-h-screen p-6 md:p-10 transition-colors duration-500"
+      style={{ backgroundColor: theme.colors.background }}
+    >
+      <div className="max-w-5xl mx-auto">
+
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <div className="mb-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <span className="text-2xl">🎨</span>
+                <h1 className="text-xl md:text-2xl font-bold text-white">Theme Control Center</h1>
+              </div>
+              <p className="text-sm" style={{ color: theme.colors.textMuted }}>
+                Apply themes, generate special links, and preview greetings.
+              </p>
+            </div>
+
+            {/* Reset button */}
+            <button
+              onClick={handleReset}
+              className="text-xs px-4 py-2 rounded-xl border transition-colors"
+              style={{
+                borderColor: resetConfirm ? '#ef444466' : theme.colors.border,
+                color: resetConfirm ? '#ef4444' : theme.colors.textMuted,
+                backgroundColor: resetConfirm ? '#ef444411' : 'transparent',
+              }}
+            >
+              {resetConfirm ? '⚠ Click again to reset' : '↺ Reset to Default'}
+            </button>
+          </div>
+
+          {/* Active theme pill */}
+          <div
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl border"
+            style={{
+              borderColor: theme.colors.borderGlow,
+              backgroundColor: `${theme.colors.primary}14`,
+            }}
+          >
+            <span className="text-base">{themes[themeId].emoji}</span>
+            <span className="text-sm font-semibold" style={{ color: theme.colors.primary }}>
+              Active theme: {themes[themeId].name}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Preview name input ──────────────────────────────────────────────── */}
+        <div
+          className="mb-8 p-5 rounded-2xl border"
+          style={{ backgroundColor: theme.colors.surface, borderColor: theme.colors.border }}
+        >
+          <label className="block text-xs font-semibold uppercase tracking-wider mb-3"
+                 style={{ color: theme.colors.textMuted }}>
+            Preview greeting with a name
+          </label>
+          <div className="flex gap-3 items-center">
+            <span className="text-2xl">👤</span>
+            <input
+              type="text"
+              value={previewName}
+              onChange={(e) => setPreviewName(e.target.value)}
+              placeholder="Enter any name…"
+              className="flex-1 bg-transparent border rounded-xl px-4 py-2.5 text-sm text-white
+                         outline-none transition-colors placeholder:text-gray-600"
+              style={{ borderColor: theme.colors.border }}
+              onFocus={(e) => (e.target.style.borderColor = theme.colors.primary)}
+              onBlur={(e) => (e.target.style.borderColor = theme.colors.border)}
+            />
+          </div>
+        </div>
+
+        {/* ── Theme cards grid ─────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+          {themesList.map((t) => (
+            <ThemeCard
+              key={t.id}
+              t={t}
+              isActive={t.id === themeId}
+              previewName={previewName}
+              activeCopyId={activeCopyId}
+              onApply={setTheme}
+              onCopy={handleCopy}
+            />
+          ))}
+        </div>
+
+        {/* ── How it works guide ───────────────────────────────────────────────── */}
+        <div
+          className="p-6 rounded-2xl border"
+          style={{ backgroundColor: theme.colors.surface, borderColor: theme.colors.border }}
+        >
+          <h2 className="text-base font-bold text-white mb-5">📖 How Special Links Work</h2>
+          <div className="grid md:grid-cols-4 gap-4">
+            {([
+              { step: '1', title: 'Copy the link', desc: 'Use "Home Link" or "Dashboard Link" on any theme card.' },
+              { step: '2', title: 'Share with a group', desc: 'Send to your medical team, engineering dept, teachers, etc.' },
+              { step: '3', title: 'Auto-preview', desc: 'The theme applies instantly when they open the link.' },
+              { step: '4', title: 'User chooses', desc: 'A banner lets them keep the theme or revert to default.' },
+            ] as const).map((item) => (
+              <div key={item.step} className="flex gap-3">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5"
+                  style={{
+                    backgroundColor: `${theme.colors.primary}20`,
+                    color: theme.colors.primary,
+                  }}
+                >
+                  {item.step}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{item.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: theme.colors.textMuted }}>{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Supabase migration note */}
+          <div
+            className="mt-6 p-4 rounded-xl border-l-4 text-xs"
+            style={{
+              borderLeftColor: '#F59E0B',
+              backgroundColor: '#F59E0B0D',
+              color: '#F59E0B',
+            }}
+          >
+            <strong>Optional — Supabase persistence:</strong> To save theme preferences server-side, run this migration:
+            <code className="block mt-2 font-mono opacity-80">
+              ALTER TABLE profiles ADD COLUMN theme_preference TEXT DEFAULT 'default';
+            </code>
+            Then call{' '}
+            <code className="font-mono">supabase.from('profiles').update({'{ theme_preference: id }'})</code> inside{' '}
+            <code className="font-mono">setTheme()</code> in ThemeContext.tsx.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+==
+'use client'
+// ─── context/ThemeContext.tsx ──────────────────────────────────────────────────
+// Provides the active theme to the entire app.
+//
+// Special-link flow:
+//   1. User visits /dashboard?theme=medical
+//   2. ThemeUrlReader detects the param → calls handleThemeFromUrl
+//   3. If theme differs from their saved preference → isFromSpecialLink = true
+//   4. ThemeBanner appears offering "Keep" or "Dismiss"
+//
+// Admin override flow:
+//   Admin visits /admin/themes → clicks "Apply Theme" → setTheme(id) called directly
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+  Suspense,
+} from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Theme, ThemeId } from '@/types/theme'
+import { themes, THEME_STORAGE_KEY, THEME_SESSION_KEY } from '@/lib/themes'
+
+// ─── Context shape ─────────────────────────────────────────────────────────────
+export interface ThemeContextValue {
+  /** The fully resolved Theme object */
+  theme: Theme
+  /** Just the ID string — useful for conditional rendering */
+  themeId: ThemeId
+  /**
+   * Switch themes programmatically.
+   * @param id      - Target theme ID
+   * @param persist - If true (default) saves to localStorage
+   */
+  setTheme: (id: ThemeId, persist?: boolean) => void
+  /** True when the current theme came from a ?theme= URL param */
+  isFromSpecialLink: boolean
+  /** Persist the current special-link theme to localStorage */
+  keepTheme: () => void
+  /** Revert to the user's previously saved theme (or default) */
+  revertTheme: () => void
+}
+
+const defaultCtx: ThemeContextValue = {
+  theme: themes.default,
+  themeId: 'default',
+  setTheme: () => {},
+  isFromSpecialLink: false,
+  keepTheme: () => {},
+  revertTheme: () => {},
+}
+
+const ThemeContext = createContext<ThemeContextValue>(defaultCtx)
+
+// ─── Inner component — reads URL search params (needs Suspense above it) ───────
+function ThemeUrlReader({
+  onThemeFromUrl,
+}: {
+  onThemeFromUrl: (id: ThemeId) => void
+}) {
+  const searchParams = useSearchParams()
+  // Track last-handled value so rapid re-renders don't re-trigger
+  const lastHandled = useRef<string | null>(null)
+
+  useEffect(() => {
+    const urlTheme = searchParams.get('theme') as ThemeId | null
+    if (urlTheme && themes[urlTheme] && urlTheme !== lastHandled.current) {
+      lastHandled.current = urlTheme
+      onThemeFromUrl(urlTheme)
+    }
+  }, [searchParams, onThemeFromUrl])
+
+  return null
+}
+
+// ─── ThemeProvider ─────────────────────────────────────────────────────────────
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [themeId, setThemeId] = useState<ThemeId>('default')
+  const [isFromSpecialLink, setIsFromSpecialLink] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+
+  // ── Read saved preference from localStorage on first mount ──────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null
+    if (saved && themes[saved]) {
+      setThemeId(saved)
+    }
+    setInitialized(true)
+  }, [])
+
+  // ── Apply CSS variables & background whenever theme changes ─────────────────
+  useEffect(() => {
+    if (!initialized) return
+    const t = themes[themeId] ?? themes.default
+
+    const root = document.documentElement
+    Object.entries(t.cssVars).forEach(([k, v]) => root.style.setProperty(k, v))
+    document.body.style.backgroundColor = t.colors.background
+    root.setAttribute('data-theme', themeId)
+  }, [themeId, initialized])
+
+  // ── Handler called by ThemeUrlReader ────────────────────────────────────────
+  const handleThemeFromUrl = useCallback((urlThemeId: ThemeId) => {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null
+    setThemeId(urlThemeId)
+    if (urlThemeId !== saved) {
+      // The user arrived via a special link → show the banner
+      setIsFromSpecialLink(true)
+      sessionStorage.setItem(THEME_SESSION_KEY, urlThemeId)
+    }
+  }, [])
+
+  // ── Public API ───────────────────────────────────────────────────────────────
+  const setTheme = useCallback((id: ThemeId, persist = true) => {
+    if (!themes[id]) return
+    setThemeId(id)
+    setIsFromSpecialLink(false)
+    if (persist) localStorage.setItem(THEME_STORAGE_KEY, id)
+  }, [])
+
+  const keepTheme = useCallback(() => {
+    localStorage.setItem(THEME_STORAGE_KEY, themeId)
+    setIsFromSpecialLink(false)
+    sessionStorage.removeItem(THEME_SESSION_KEY)
+  }, [themeId])
+
+  const revertTheme = useCallback(() => {
+    setIsFromSpecialLink(false)
+    sessionStorage.removeItem(THEME_SESSION_KEY)
+    const saved = localStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null
+    setThemeId(saved && themes[saved] ? saved : 'default')
+  }, [])
+
+  return (
+    <ThemeContext.Provider
+      value={{
+        theme: themes[themeId] ?? themes.default,
+        themeId,
+        setTheme,
+        isFromSpecialLink,
+        keepTheme,
+        revertTheme,
+      }}
+    >
+      {/* ThemeUrlReader is wrapped in its own Suspense so the rest of the
+          app renders immediately — no loading state needed at root level */}
+      <Suspense fallback={null}>
+        <ThemeUrlReader onThemeFromUrl={handleThemeFromUrl} />
+      </Suspense>
+      {children}
+    </ThemeContext.Provider>
+  )
+}
+
+// ─── Hook ──────────────────────────────────────────────────────────────────────
+export function useTheme(): ThemeContextValue {
+  return useContext(ThemeContext)
+}
+===
+// ─── lib/themes.ts ────────────────────────────────────────────────────────────
+// All theme definitions live here.  To add a new theme:
+//   1. Add its ID to `ThemeId` in types/theme.ts
+//   2. Add its object to the `themes` map below
+
+import { Theme, ThemeId } from '@/types/theme'
+
+export const THEME_STORAGE_KEY = 'app_theme_preference'
+export const THEME_SESSION_KEY = 'app_theme_from_link'
+
+export const themes: Record<ThemeId, Theme> = {
+
+  // ── Default ────────────────────────────────────────────────────────────────
+  default: {
+    id: 'default',
+    name: 'Default',
+    nameAr: 'الافتراضي',
+    emoji: '✨',
+    description: 'The classic experience',
+    descriptionAr: 'التجربة الكلاسيكية',
+    greeting:   (name) => name ? `Welcome back, ${name}` : 'Welcome back',
+    greetingAr: (name) => name ? `مرحباً بعودتك، ${name}` : 'مرحباً بعودتك',
+    subGreeting:   'Ready to continue your journey?',
+    subGreetingAr: 'هل أنت مستعد لمواصلة رحلتك؟',
+    badge:   '',
+    badgeAr: '',
+    colors: {
+      primary:      '#A855F7',
+      primaryLight: '#C084FC',
+      secondary:    '#6366F1',
+      accent:       '#7C3AED',
+      background:   '#050505',
+      surface:      '#0F0F0F',
+      surfaceHover: '#1A1A1A',
+      border:       '#1F1F1F',
+      borderGlow:   'rgba(168,85,247,0.30)',
+      text:         '#FFFFFF',
+      textMuted:    '#9CA3AF',
+      glow:         '0 0 40px rgba(168,85,247,0.15)',
+    },
+    cssVars: {
+      '--theme-primary':      '#A855F7',
+      '--theme-primary-light':'#C084FC',
+      '--theme-secondary':    '#6366F1',
+      '--theme-accent':       '#7C3AED',
+      '--theme-glow':         '0 0 40px rgba(168,85,247,0.15)',
+      '--theme-border-glow':  'rgba(168,85,247,0.30)',
+    },
+  },
+
+  // ── Medical ────────────────────────────────────────────────────────────────
+  medical: {
+    id: 'medical',
+    name: 'Medical Professional',
+    nameAr: 'الطاقم الطبي',
+    emoji: '⚕️',
+    description: 'Designed for healthcare professionals',
+    descriptionAr: 'مصمّم للمختصين في الرعاية الصحية',
+    greeting:   (name) => name ? `Welcome, Dr. ${name}` : 'Welcome, Doctor',
+    greetingAr: (name) => name ? `أهلاً دكتور ${name}` : 'أهلاً دكتور',
+    subGreeting:   'Your professional workspace is ready.',
+    subGreetingAr: 'مساحة عملك المهنية جاهزة.',
+    badge:   'Medical Professional',
+    badgeAr: 'طاقم طبي',
+    colors: {
+      primary:      '#06B6D4',
+      primaryLight: '#22D3EE',
+      secondary:    '#10B981',
+      accent:       '#0891B2',
+      background:   '#020B10',
+      surface:      '#051820',
+      surfaceHover: '#071F2A',
+      border:       '#0C3544',
+      borderGlow:   'rgba(6,182,212,0.30)',
+      text:         '#F0FDFF',
+      textMuted:    '#94A3B8',
+      glow:         '0 0 40px rgba(6,182,212,0.18)',
+    },
+    cssVars: {
+      '--theme-primary':      '#06B6D4',
+      '--theme-primary-light':'#22D3EE',
+      '--theme-secondary':    '#10B981',
+      '--theme-accent':       '#0891B2',
+      '--theme-glow':         '0 0 40px rgba(6,182,212,0.18)',
+      '--theme-border-glow':  'rgba(6,182,212,0.30)',
+    },
+  },
+
+  // ── Engineering ────────────────────────────────────────────────────────────
+  engineering: {
+    id: 'engineering',
+    name: 'Engineering Professional',
+    nameAr: 'المهندس المحترف',
+    emoji: '⚙️',
+    description: 'Built for engineers and builders',
+    descriptionAr: 'مبنيّ للمهندسين وأصحاب الكفاءة التقنية',
+    greeting:   (name) => name ? `Welcome, Eng. ${name}` : 'Welcome, Engineer',
+    greetingAr: (name) => name ? `أهلاً مهندس ${name}` : 'أهلاً مهندس',
+    subGreeting:   "Let's build something great today.",
+    subGreetingAr: 'لنبنِ شيئاً عظيماً اليوم.',
+    badge:   'Engineering Professional',
+    badgeAr: 'مهندس محترف',
+    colors: {
+      primary:      '#F97316',
+      primaryLight: '#FB923C',
+      secondary:    '#6366F1',
+      accent:       '#EA580C',
+      background:   '#0A0500',
+      surface:      '#140C00',
+      surfaceHover: '#1C1200',
+      border:       '#3D2200',
+      borderGlow:   'rgba(249,115,22,0.30)',
+      text:         '#FFF7ED',
+      textMuted:    '#A8A29E',
+      glow:         '0 0 40px rgba(249,115,22,0.18)',
+    },
+    cssVars: {
+      '--theme-primary':      '#F97316',
+      '--theme-primary-light':'#FB923C',
+      '--theme-secondary':    '#6366F1',
+      '--theme-accent':       '#EA580C',
+      '--theme-glow':         '0 0 40px rgba(249,115,22,0.18)',
+      '--theme-border-glow':  'rgba(249,115,22,0.30)',
+    },
+  },
+
+  // ── Education ──────────────────────────────────────────────────────────────
+  education: {
+    id: 'education',
+    name: 'Education Professional',
+    nameAr: 'المعلم المحترف',
+    emoji: '🎓',
+    description: 'For educators and knowledge shapers',
+    descriptionAr: 'للمعلمين وصانعي المعرفة',
+    greeting:   (name) => name ? `Welcome, Prof. ${name}` : 'Welcome, Educator',
+    greetingAr: (name) => name ? `أهلاً أستاذ ${name}` : 'أهلاً أستاذ',
+    subGreeting:   'Inspiring minds, one session at a time.',
+    subGreetingAr: 'إلهام العقول جلسةً تلو الأخرى.',
+    badge:   'Education Professional',
+    badgeAr: 'معلّم محترف',
+    colors: {
+      primary:      '#8B5CF6',
+      primaryLight: '#A78BFA',
+      secondary:    '#FBBF24',
+      accent:       '#7C3AED',
+      background:   '#030007',
+      surface:      '#0A0515',
+      surfaceHover: '#0F071E',
+      border:       '#1E0D40',
+      borderGlow:   'rgba(139,92,246,0.30)',
+      text:         '#F5F3FF',
+      textMuted:    '#A78BFA',
+      glow:         '0 0 40px rgba(139,92,246,0.18)',
+    },
+    cssVars: {
+      '--theme-primary':      '#8B5CF6',
+      '--theme-primary-light':'#A78BFA',
+      '--theme-secondary':    '#FBBF24',
+      '--theme-accent':       '#7C3AED',
+      '--theme-glow':         '0 0 40px rgba(139,92,246,0.18)',
+      '--theme-border-glow':  'rgba(139,92,246,0.30)',
+    },
+  },
+
+  // ── Birthday ───────────────────────────────────────────────────────────────
+  birthday: {
+    id: 'birthday',
+    name: 'Birthday Celebration',
+    nameAr: 'عيد الميلاد',
+    emoji: '🎂',
+    description: "Celebrating your special day!",
+    descriptionAr: 'احتفالاً بيومك المميّز!',
+    greeting:   (name) => name ? `Happy Birthday, ${name}! 🎉` : 'Happy Birthday! 🎉',
+    greetingAr: (name) => name ? `عيد ميلاد سعيد، ${name}! 🎉` : 'عيد ميلاد سعيد! 🎉',
+    subGreeting:   'Wishing you an amazing year ahead!',
+    subGreetingAr: 'نتمنى لك عاماً رائعاً قادماً!',
+    badge:   "🎂 It's your Birthday!",
+    badgeAr: '🎂 عيد ميلادك اليوم!',
+    celebratory: true,
+    colors: {
+      primary:      '#EC4899',
+      primaryLight: '#F472B6',
+      secondary:    '#F59E0B',
+      accent:       '#DB2777',
+      background:   '#06000A',
+      surface:      '#120010',
+      surfaceHover: '#1A0018',
+      border:       '#3D0030',
+      borderGlow:   'rgba(236,72,153,0.35)',
+      text:         '#FFF0F7',
+      textMuted:    '#F9A8D4',
+      glow:         '0 0 50px rgba(236,72,153,0.22)',
+    },
+    cssVars: {
+      '--theme-primary':      '#EC4899',
+      '--theme-primary-light':'#F472B6',
+      '--theme-secondary':    '#F59E0B',
+      '--theme-accent':       '#DB2777',
+      '--theme-glow':         '0 0 50px rgba(236,72,153,0.22)',
+      '--theme-border-glow':  'rgba(236,72,153,0.35)',
+    },
+  },
+}
+
+export const themesList = Object.values(themes)
+==
+// ─── types/theme.ts ───────────────────────────────────────────────────────────
+// Central type definitions for the app-wide theme system.
+// Add new theme IDs here first whenever you create a new theme.
+
+export type ThemeId = 'default' | 'medical' | 'engineering' | 'education' | 'birthday'
+
+export interface ThemeColors {
+  primary: string       // Main accent / CTA colour
+  primaryLight: string  // Lighter tint of primary
+  secondary: string     // Supporting accent colour
+  accent: string        // Deep variant used for hovers / shadows
+  background: string    // Page-level background
+  surface: string       // Card / panel background
+  surfaceHover: string  // Card hover state
+  border: string        // Subtle border
+  borderGlow: string    // Glowing border (rgba)
+  text: string          // Primary text
+  textMuted: string     // De-emphasised text
+  glow: string          // box-shadow glow string
+}
+
+export interface Theme {
+  id: ThemeId
+  name: string           // English label
+  nameAr: string         // Arabic label
+  emoji: string          // Representative emoji
+  description: string
+  descriptionAr: string
+
+  // Smart greeting functions — pass the user's display_name (or null for generic)
+  greeting: (name?: string | null) => string
+  greetingAr: (name?: string | null) => string
+
+  subGreeting: string    // Subtitle shown under the main greeting
+  subGreetingAr: string
+
+  badge: string          // Short badge text shown on the avatar / dashboard chip
+  badgeAr: string
+
+  colors: ThemeColors
+  cssVars: Record<string, string>  // Applied to :root via ThemeProvider
+  celebratory?: boolean            // Triggers confetti on birthday theme
+}
+===
+'use client'
+// ─── components/ThemeBanner.tsx ───────────────────────────────────────────────
+// Slides in from the top when a user arrives via a special ?theme= link.
+// Automatically reverts after COUNTDOWN_SECONDS if the user takes no action.
+
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useTheme } from '@/context/ThemeContext'
+
+const COUNTDOWN_SECONDS = 15
+
+export default function ThemeBanner() {
+  const { theme, isFromSpecialLink, keepTheme, revertTheme } = useTheme()
+  const [seconds, setSeconds] = useState(COUNTDOWN_SECONDS)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Reset + start countdown whenever banner becomes visible
+  useEffect(() => {
+    if (!isFromSpecialLink) {
+      if (timerRef.current) clearInterval(timerRef.current)
+      return
+    }
+
+    setSeconds(COUNTDOWN_SECONDS)
+
+    timerRef.current = setInterval(() => {
+      setSeconds((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current)
+          revertTheme()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [isFromSpecialLink, revertTheme])
+
+  // Arc progress for the countdown ring
+  const radius = 10
+  const circumference = 2 * Math.PI * radius
+  const progress = (seconds / COUNTDOWN_SECONDS) * circumference
+
+  return (
+    <AnimatePresence>
+      {isFromSpecialLink && (
+        <motion.div
+          key="theme-banner"
+          initial={{ y: -80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -80, opacity: 0 }}
+          transition={{ type: 'spring', damping: 22, stiffness: 220 }}
+          className="fixed top-3 left-0 right-0 z-[9999] flex justify-center px-4 pointer-events-none"
+        >
+          <div
+            className="pointer-events-auto flex items-center gap-4 rounded-2xl border px-5 py-3.5
+                       backdrop-blur-2xl shadow-2xl w-full max-w-xl"
+            style={{
+              backgroundColor: `${theme.colors.surface}E0`,
+              borderColor: theme.colors.borderGlow,
+              boxShadow: theme.colors.glow,
+            }}
+          >
+            {/* ── Theme icon ─────────────────────────────────────────── */}
+            <div
+              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+              style={{ backgroundColor: `${theme.colors.primary}22` }}
+            >
+              {theme.emoji}
+            </div>
+
+            {/* ── Labels ─────────────────────────────────────────────── */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold leading-tight" style={{ color: theme.colors.text }}>
+                {theme.name} Theme
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: theme.colors.textMuted }}>
+                {theme.descriptionAr} — هل تريد الاحتفاظ به؟
+              </p>
+            </div>
+
+            {/* ── Countdown ring ─────────────────────────────────────── */}
+            <svg width="28" height="28" className="flex-shrink-0 -rotate-90">
+              <circle
+                cx="14" cy="14" r={radius}
+                fill="none"
+                stroke={`${theme.colors.primary}33`}
+                strokeWidth="2.5"
+              />
+              <circle
+                cx="14" cy="14" r={radius}
+                fill="none"
+                stroke={theme.colors.primary}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference - progress}
+                style={{ transition: 'stroke-dashoffset 1s linear' }}
+              />
+              <text
+                x="14" y="14"
+                textAnchor="middle"
+                dominantBaseline="central"
+                className="rotate-90"
+                fontSize="8"
+                fill={theme.colors.primary}
+                style={{ transform: 'rotate(90deg)', transformOrigin: '14px 14px' }}
+              >
+                {seconds}
+              </text>
+            </svg>
+
+            {/* ── Actions ────────────────────────────────────────────── */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={revertTheme}
+                className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                style={{
+                  color: theme.colors.textMuted,
+                  backgroundColor: `${theme.colors.border}99`,
+                }}
+              >
+                تجاهل
+              </button>
+              <button
+                onClick={keepTheme}
+                className="text-xs px-4 py-1.5 rounded-lg font-semibold transition-all active:scale-95"
+                style={{
+                  background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`,
+                  color: '#fff',
+                  boxShadow: `0 2px 12px ${theme.colors.primary}44`,
+                }}
+              >
+                احتفظ بالثيم ✓
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+==
+// ─── app/layout.tsx ───────────────────────────────────────────────────────────
+// Root layout — unchanged from your original except for:
+//   1. ThemeProvider wrapping everything (applies CSS vars to :root)
+//   2. ThemeBanner rendered once here so it appears on every page
+
+import './globals.css'
+import { Tajawal, Cairo } from 'next/font/google'
+import type { Metadata } from 'next'
+import { ThemeProvider } from '@/context/ThemeContext'
+import ThemeBanner from '@/components/ThemeBanner'
+
+const tajawal = Tajawal({
+  subsets: ['arabic', 'latin'],
+  weight: ['200', '300', '400', '500', '700', '800', '900'],
+  variable: '--font-tajawal',
+})
+
+const cairo = Cairo({
+  subsets: ['arabic', 'latin'],
+  weight: ['200', '300', '400', '500', '600', '700', '800', '900'],
+  variable: '--font-cairo',
+})
+
+export const metadata: Metadata = {
+  title: 'Your App',
+  description: 'Your App Description',
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ar" className={`${tajawal.variable} ${cairo.variable}`}>
+      {/*
+       * bg-[#050505] stays as the SSR/hydration fallback.
+       * ThemeProvider overrides body.style.backgroundColor client-side
+       * the moment the correct theme is resolved from localStorage.
+       */}
+      <body className="bg-[#050505] text-white selection:bg-purple-500/30">
+        <ThemeProvider>
+          {/* Banner appears automatically when user visits via ?theme= link */}
+          <ThemeBanner />
+          {children}
+        </ThemeProvider>
+      </body>
+    </html>
+  )
+}

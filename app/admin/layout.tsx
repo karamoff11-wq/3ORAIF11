@@ -19,6 +19,7 @@ const NAV_MAIN = [
 
 const NAV_CUSTOMIZE = [
   { href: '/admin/appearance', label: 'المظهر والألوان',       icon: '🎨' },
+  { href: '/admin/themes',     label: 'الثيمات الخاصة',       icon: '✨' },
   { href: '/admin/landing',    label: 'الصفحة الرئيسية',      icon: '🏠' },
   { href: '/admin/game-ui',    label: 'واجهة اللعبة',          icon: '🕹️' },
 ]
@@ -34,9 +35,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/login'); return }
       try {
-        const { data: profile } = await (supabase
-          .from('profiles') as any).select('role').eq('id', user.id).single()
-        if (profile && (profile as any).role !== 'admin') {
+        const { data: profile } = await (supabase.from('profiles') as any).select('role').eq('id', user.id).single()
+        if (profile && profile.role !== 'admin') {
           router.push('/dashboard'); return
         }
       } catch { /* DB not set up yet — allow access */ }

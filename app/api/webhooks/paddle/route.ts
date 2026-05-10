@@ -88,16 +88,14 @@ export async function POST(request: NextRequest) {
     const planType = priceId === teamPriceId ? 'team' : priceId === proPriceId ? 'pro' : 'free'
 
     // Upsert into subscriptions table
-    const { error: subError } = await supabase
-      .from('subscriptions')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: subError } = await (supabase.from('subscriptions') as any)
       .upsert({
         user_id:                userId,
         paddle_subscription_id: subscriptionId,
         status,
         plan_type:              planType,
         current_period_end:     periodEnd ?? null,
-      } as any, { onConflict: 'user_id' })
+      }, { onConflict: 'user_id' })
 
     if (subError) {
       console.error('[Paddle] Subscription upsert error:', subError)
@@ -105,17 +103,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Also update the plan_type on the profiles table for fast reads
-    await supabase
-      .from('profiles')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ plan_type: status === 'active' ? planType : 'free' } as any)
+    await (supabase.from('profiles') as any)
+      .update({ plan_type: status === 'active' ? planType : 'free' })
       .eq('id', userId)
 
     console.log(`[Paddle] Updated user ${userId} to plan: ${planType} (${status})`)
 
     // Send Pro Confirmation email on activation
     if (status === 'active' && planType !== 'free') {
-      const { data: profile } = await supabase.from('profiles').select('email').eq('id', userId).single()
+      const { data: profile } = await (supabase.from('profiles') as any).select('email').eq('id', userId).single()
       if (profile?.email) {
         await sendProConfirmationEmail({
           to:   profile.email,
@@ -132,34 +128,43 @@ export async function POST(request: NextRequest) {
     const userId = customData?.user_id
 
     if (userId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await supabase.from('profiles').update({ plan_type: 'free' } as any).eq('id', userId)
-      await supabase
-        .from('subscriptions')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ status: 'canceled' } as any)
+      await (supabase.from('profiles') as any).update({ plan_type: 'free' }).eq('id', userId)
+      await (supabase.from('subscriptions') as any)
+        .update({ status: 'canceled' })
         .eq('user_id', userId)
 
       console.log(`[Paddle] Downgraded user ${userId} to free (canceled)`)
     }
   }
 
-  // ── Record Payment ──────────────────────────────────────────────
+  // ── Record Payment & Credits ──────────────────────────────────────────
   if (eventType === 'transaction.completed') {
-    const customData = data.custom_data as Record<string, string> | null
+    const customData = data.custom_data as Record<string, any> | null
     const userId = customData?.user_id
-    const totals = data.details as Record<string, Record<string, string>>
+    const sessionsToAdd = Number(customData?.sessions || 0)
+    const totals = (data.details as any)?.totals
 
     if (userId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await supabase.from('payments').insert({
+      // 1. Record the payment
+      await (supabase.from('payments') as any).insert({
         user_id:               userId,
-        type:                  'subscription',
+        type:                  sessionsToAdd > 0 ? 'session' : 'subscription',
         status:                'completed',
         paddle_transaction_id: data.id as string,
-        amount:                Number(totals?.totals?.total ?? 0) / 100,
+        amount:                Number(totals?.total ?? 0) / 100,
         currency:              data.currency_code as string,
-      } as any)
+      })
+
+      // 2. If it's a session pack, increment credits
+      if (sessionsToAdd > 0) {
+        // We use an RPC or a manual increment
+        // Assuming profiles has a session_credits column (verified in database.ts)
+        const { data: current } = await (supabase.from('profiles') as any).select('session_credits').eq('id', userId).single()
+        const newCredits = (current?.session_credits || 0) + sessionsToAdd
+        await (supabase.from('profiles') as any).update({ session_credits: newCredits }).eq('id', userId)
+
+        console.log(`[Paddle] Added ${sessionsToAdd} credits to user ${userId}. New total: ${newCredits}`)
+      }
     }
   }
 

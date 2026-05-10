@@ -7,11 +7,15 @@ import { useGameStore } from '@/store/gameStore'
 import { useFeedbackStore } from '@/store/feedbackStore'
 import { createClient } from '@/lib/supabaseClient'
 import { gameEngine } from '@/lib/gameEngine'
-import QuestionModal from './QuestionModal'
+import dynamic from 'next/dynamic'
 import Mascot, { TEAM_PALETTE } from './Mascot'
 import toast from 'react-hot-toast'
 import { useMascotBehavior } from '@/hooks/useMascotBehavior'
-import Fireworks from './Fireworks'
+import { track } from '@/lib/analytics'
+
+// ── Lazy-loaded: only fetched when a question is selected or game ends ──
+const QuestionModal = dynamic(() => import('./QuestionModal'), { ssr: false })
+const Fireworks    = dynamic(() => import('./Fireworks'),     { ssr: false })
 
 const DIFF_ORDER = ['easy', 'medium', 'hard'] as const
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' }
@@ -36,6 +40,7 @@ export default function GameBoard() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastActivityRef = useRef(Date.now())
   const introPlayedRef = useRef(false)
+  const gameCompletedTrackedRef = useRef(false)
 
   const boardMap = useMemo(() => {
     const map: Record<string, Record<string, Record<string, any>>> = {}
@@ -63,20 +68,21 @@ export default function GameBoard() {
 
   // ── Team card position helper — MUST be above any conditional returns ──
   const getTeamPositionClasses = (count: number, index: number): string => {
+    const base = 'top-1/2 -translate-y-1/2'
     if (count === 2) {
-      if (index === 0) return 'left-4 top-1/2 -translate-y-1/2'
-      if (index === 1) return 'right-4 top-1/2 -translate-y-1/2'
+      if (index === 0) return `left-2 md:left-4 ${base}`
+      if (index === 1) return `right-2 md:right-4 ${base}`
     }
     if (count === 3) {
-      if (index === 0) return 'left-4 top-4'
-      if (index === 1) return 'right-4 top-4'
-      if (index === 2) return 'left-4 bottom-4'
+      if (index === 0) return `left-1 md:left-3 ${base}`
+      if (index === 1) return `right-1 md:right-3 ${base}`
+      if (index === 2) return `left-[65px] md:left-[95px] ${base}`
     }
     if (count >= 4) {
-      if (index === 0) return 'left-4 top-4'
-      if (index === 1) return 'right-4 top-4'
-      if (index === 2) return 'left-4 bottom-4'
-      if (index === 3) return 'right-4 bottom-4'
+      if (index === 0) return `left-1 md:left-3 ${base}`
+      if (index === 1) return `right-1 md:right-3 ${base}`
+      if (index === 2) return `left-[65px] md:left-[95px] ${base}`
+      if (index === 3) return `right-[65px] md:right-[95px] ${base}`
     }
     return ''
   }
@@ -96,7 +102,22 @@ export default function GameBoard() {
   }
 
   const handleTileClick = (sq: any) => {
+    if (!store.isHost) {
+      toast('فقط المضيف يمكنه اختيار السؤال!', { icon: '🔒' })
+      return
+    }
+    
     store.setSelectedQuestion(sq)
+    store.setBuzzedTeamId(null) // Reset buzzer
+
+    // Broadcast question to players
+    if (store.broadcastChannel) {
+      store.broadcastChannel.send({
+        type: 'broadcast',
+        event: 'open_question',
+        payload: { sq }
+      })
+    }
     
     // Thinking Voice Logic:
     // Only on "Hard" difficulty, and only for a specific count per game based on teams.
@@ -114,7 +135,19 @@ export default function GameBoard() {
 
   const handleModalClose = () => {
     const s = useGameStore.getState()
+    if (!s.isHost) return
+
     s.setSelectedQuestion(null)
+    s.setBuzzedTeamId(null)
+
+    // Broadcast close to players
+    if (s.broadcastChannel) {
+      s.broadcastChannel.send({
+        type: 'broadcast',
+        event: 'close_question',
+        payload: {}
+      })
+    }
 
     // Check for end of game after modal is closed
     const after = useGameStore.getState()
@@ -157,6 +190,21 @@ export default function GameBoard() {
       clearInterval(idleCheck)
     }
   }, [triggerReaction, settings])
+
+  // ── Track game_completed once when the phase transitions to 'finished' ──
+  useEffect(() => {
+    if (phase === 'finished' && !gameCompletedTrackedRef.current) {
+      gameCompletedTrackedRef.current = true
+      const sorted = [...teams].sort((a, b) => b.score - a.score)
+      const winner = sorted[0]
+      track('game_completed', {
+        session_id:   sessionId ?? '',
+        winner_name:  winner?.name ?? '',
+        winner_score: winner?.score ?? 0,
+        team_count:   teams.length,
+      })
+    }
+  }, [phase, teams, sessionId])
 
   if (phase === 'finished') {
 
@@ -521,108 +569,100 @@ export default function GameBoard() {
                   />
                 )}
 
-                {/* Category Centerpiece */}
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  className="absolute inset-y-0 left-[90px] right-[90px] md:left-[140px] md:right-[140px] z-20 flex flex-col items-center justify-end overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] border-x border-white/10 bg-black/40 backdrop-blur-md"
-                >
-                  <div className="absolute inset-0 w-full h-full">
-                    <div className="absolute inset-0 z-10 w-full h-full flex items-center justify-center overflow-hidden">
-                      {cat.image_url ? (
-                        <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover opacity-90" />
-                      ) : cat.icon ? (
-                        <span className="text-8xl filter saturate-150 drop-shadow-lg">{cat.icon}</span>
-                      ) : (
-                        <span className="text-8xl">🎮</span>
-                      )}
-                    </div>
+                <div className="absolute inset-0 z-20 flex p-2 md:p-3 gap-2 md:gap-3 items-center justify-between">
+                  
+                  {/* First Group Teams */}
+                  <div className="flex gap-1.5 md:gap-2 shrink-0 z-30">
+                    {(teams.length === 2 ? [0] : [0, 1]).map(tIndex => {
+                      const team = teams[tIndex]
+                      if (!team) return null
+                      const isActive = currentTeamIndex === tIndex
+                      const isDense = teams.length > 2
+                      const widthClass = isDense ? 'w-[60px] md:w-[75px]' : 'w-[90px] md:w-[120px]'
+                      
+                      return (
+                        <motion.div key={team.id} initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+                          className={`flex flex-col gap-2 transition-all duration-500 ${widthClass}`}
+                          style={{ opacity: isActive ? 1 : 0.3, filter: isActive ? 'none' : 'grayscale(80%)', transform: isActive ? 'scale(1.05)' : 'scale(0.95)' }}>
+                          <div className="flex flex-col rounded-2xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-md">
+                            {DIFF_ORDER.map((diff, i) => {
+                              const sq = boardMap[cat.id]?.[team.id]?.[diff]
+                              if (!sq) return null
+                              const disabled = sq.used || !isActive
+                              return (
+                                <motion.button key={sq.id} disabled={disabled} onClick={() => handleTileClick(sq)}
+                                  className={`relative flex items-center justify-center ${isDense ? 'py-1.5 md:py-2.5' : 'py-3 md:py-4'} transition-all w-full ${i < 2 ? 'border-b border-white/10' : ''}`}
+                                  style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1 }}
+                                  whileHover={!disabled && isActive ? "hover" : ""} initial="default" animate="default">
+                                  {sq.used ? ( <span className="text-sm font-bold relative z-10 text-white/30">✓</span> ) : (
+                                    <motion.span className={`${isDense ? 'text-base md:text-xl' : 'text-3xl md:text-4xl'} tabular-nums relative z-10`} 
+                                      variants={{ hover: { color: team.color, textShadow: `0 0 25px ${team.color}`, scale: 1.1 }, default: { color: '#ffffff', textShadow: '0 0 10px rgba(255,255,255,0.3)', scale: 1 } }}
+                                      transition={{ duration: 0.2 }} style={{ fontFamily: 'var(--font-latin), serif', fontStyle: 'italic', fontWeight: 900 }}>
+                                      {pts(diff)}
+                                    </motion.span>
+                                  )}
+                                </motion.button>
+                              )
+                            })}
+                          </div>
+                        </motion.div>
+                      )
+                    })}
                   </div>
-                  
-                  {/* Gradient to make name readable at the bottom */}
-                  <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/90 to-transparent z-10" />
 
-                  {/* Category Name Overlay */}
-                  <h2 className="relative z-20 text-lg md:text-2xl font-black tracking-widest text-white/90 uppercase px-2 pb-4 md:pb-6 w-full text-center break-words leading-tight drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">{cat.name}</h2>
-                </motion.div>
+                  {/* Category Centerpiece (Flex-1 allows it to take remaining space smoothly) */}
+                  <motion.div initial={{ opacity: 0, scale: 0.8 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
+                    className="relative h-full flex-1 flex flex-col items-center justify-end overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] border-x border-white/10 bg-black/40 backdrop-blur-md rounded-xl z-20"
+                  >
+                    <div className="absolute inset-0 z-10 w-full h-full flex items-center justify-center overflow-hidden">
+                      {cat.image_url ? ( <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover opacity-90" /> ) : 
+                       cat.icon ? ( <span className="text-6xl md:text-8xl filter saturate-150 drop-shadow-lg">{cat.icon}</span> ) : 
+                       ( <span className="text-6xl md:text-8xl">🎮</span> )}
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-black/90 to-transparent z-10" />
+                    <h2 className="relative z-20 text-sm md:text-2xl font-black tracking-widest text-white/90 uppercase px-2 pb-3 md:pb-6 w-full text-center break-words leading-tight drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">{cat.name}</h2>
+                  </motion.div>
 
-                {/* Dynamic Team Cards around the Category */}
-                {teams.map((team, tIndex) => {
-                  const isActive = currentTeamIndex === tIndex
-                  const posClass = getTeamPositionClasses(teams.length, tIndex)
-                  
-                  return (
-                    <motion.div 
-                      key={team.id}
-                      initial={{ opacity: 0 }}
-                      whileInView={{ opacity: 1 }}
-                      viewport={{ once: true }}
-                      className={`absolute z-10 flex flex-col gap-2 p-1 transition-all duration-500 w-[110px] md:w-[130px] ${posClass}`}
-                      style={{
-                        background: 'transparent',
-                        opacity: isActive ? 1 : 0.3,
-                        filter: isActive ? 'none' : 'grayscale(80%)',
-                        transform: isActive ? 'scale(1.05)' : 'scale(0.95)'
-                      }}
-                    >
-                      <div className="flex flex-col rounded-2xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-md"
-                           style={{ background: 'transparent' }}>
-                        {DIFF_ORDER.map((diff, i) => {
-                          const sq = boardMap[cat.id]?.[team.id]?.[diff]
-                          if (!sq) return null
+                  {/* Second Group Teams */}
+                  <div className="flex gap-1.5 md:gap-2 shrink-0 z-30">
+                    {(teams.length === 2 ? [1] : [2, 3]).map(tIndex => {
+                      const team = teams[tIndex]
+                      if (!team) return null
+                      const isActive = currentTeamIndex === tIndex
+                      const isDense = teams.length > 2
+                      const widthClass = isDense ? 'w-[60px] md:w-[75px]' : 'w-[90px] md:w-[120px]'
+                      
+                      return (
+                        <motion.div key={team.id} initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+                          className={`flex flex-col gap-2 transition-all duration-500 ${widthClass}`}
+                          style={{ opacity: isActive ? 1 : 0.3, filter: isActive ? 'none' : 'grayscale(80%)', transform: isActive ? 'scale(1.05)' : 'scale(0.95)' }}>
+                          <div className="flex flex-col rounded-2xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-md">
+                            {DIFF_ORDER.map((diff, i) => {
+                              const sq = boardMap[cat.id]?.[team.id]?.[diff]
+                              if (!sq) return null
+                              const disabled = sq.used || !isActive
+                              return (
+                                <motion.button key={sq.id} disabled={disabled} onClick={() => handleTileClick(sq)}
+                                  className={`relative flex items-center justify-center ${isDense ? 'py-1.5 md:py-2.5' : 'py-3 md:py-4'} transition-all w-full ${i < 2 ? 'border-b border-white/10' : ''}`}
+                                  style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1 }}
+                                  whileHover={!disabled && isActive ? "hover" : ""} initial="default" animate="default">
+                                  {sq.used ? ( <span className="text-sm font-bold relative z-10 text-white/30">✓</span> ) : (
+                                    <motion.span className={`${isDense ? 'text-base md:text-xl' : 'text-3xl md:text-4xl'} tabular-nums relative z-10`} 
+                                      variants={{ hover: { color: team.color, textShadow: `0 0 25px ${team.color}`, scale: 1.1 }, default: { color: '#ffffff', textShadow: '0 0 10px rgba(255,255,255,0.3)', scale: 1 } }}
+                                      transition={{ duration: 0.2 }} style={{ fontFamily: 'var(--font-latin), serif', fontStyle: 'italic', fontWeight: 900 }}>
+                                      {pts(diff)}
+                                    </motion.span>
+                                  )}
+                                </motion.button>
+                              )
+                            })}
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </div>
 
-                          const used = sq.used
-                          const disabled = used || !isActive
-
-                          return (
-                            <motion.button
-                              key={sq.id}
-                              disabled={disabled}
-                              onClick={() => handleTileClick(sq)}
-                              className={`relative flex items-center justify-center py-3 md:py-4 transition-all w-full ${i < 2 ? 'border-b border-white/10' : ''}`}
-                              style={{
-                                background: 'transparent',
-                                cursor: disabled ? 'not-allowed' : 'pointer',
-                                opacity: disabled ? 0.4 : 1
-                              }}
-                              whileHover={!disabled && isActive ? "hover" : ""}
-                              initial="default"
-                              animate="default"
-                            >
-                              {used ? (
-                                <span className="text-sm font-bold relative z-10 text-white/30">✓</span>
-                              ) : (
-                                <motion.span className="text-3xl md:text-4xl tabular-nums relative z-10" 
-                                  variants={{
-                                    hover: { 
-                                      color: team.color, 
-                                      textShadow: `0 0 25px ${team.color}`,
-                                      scale: 1.1 
-                                    },
-                                    default: { 
-                                      color: '#ffffff', 
-                                      textShadow: '0 0 10px rgba(255,255,255,0.3)',
-                                      scale: 1 
-                                    }
-                                  }}
-                                  transition={{ duration: 0.2 }}
-                                  style={{ 
-                                    fontFamily: 'var(--font-latin), serif', 
-                                    fontStyle: 'italic', 
-                                    fontWeight: 900
-                                  }}>
-                                  {pts(diff)}
-                                </motion.span>
-                              )}
-                            </motion.button>
-                          )
-                        })}
-                      </div>
-                    </motion.div>
-                  )
-                })}
-
+                </div>
               </div>
             ))}
           </div>

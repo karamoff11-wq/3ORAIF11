@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
+import { GeneratorCategory } from '@/types/admin'
 
 export default function AdminGeneratorPage() {
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<GeneratorCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const supabase = createClient()
@@ -14,7 +15,7 @@ export default function AdminGeneratorPage() {
   const loadData = async () => {
     setIsLoading(true)
     // Fetch categories with topic info and difficulty breakdown
-    const { data: categories } = await (supabase.from('categories') as any).select(`
+    const { data: categories } = await supabase.from('categories').select(`
       id,
       name,
       topics (name, color),
@@ -29,7 +30,7 @@ export default function AdminGeneratorPage() {
     loadData()
   }, [])
 
-  const handleGenerate = async (cat: any) => {
+  const handleGenerate = async (cat: GeneratorCategory) => {
     setGeneratingId(cat.id)
     try {
       const res = await fetch('/api/admin/generate', {

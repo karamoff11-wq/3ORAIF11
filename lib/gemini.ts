@@ -108,8 +108,8 @@ function parseResponse(raw: string, categoryId: string): GeneratedQuestion[] {
   const end = cleaned.lastIndexOf(']') + 1
   if (start === -1 || end === 0) throw new Error('No JSON array in response')
 
-  const parsed = JSON.parse(cleaned.slice(start, end))
-  return parsed.map((q: any) => ({ ...q, category_id: categoryId }))
+  const parsed = JSON.parse(cleaned.slice(start, end)) as Record<string, unknown>[]
+  return parsed.map((q: Record<string, unknown>) => ({ ...q, category_id: categoryId })) as GeneratedQuestion[]
 }
 
 function validate(questions: GeneratedQuestion[], teams: number, categoryName: string) {

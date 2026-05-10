@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Image from 'next/image'
 import Mascot from './Mascot'
 import { createClient } from '@/lib/supabaseClient'
 import { gameEngine } from '@/lib/gameEngine'
 import { useGameStore } from '@/store/gameStore'
 import { useSoundSystem } from '@/hooks/useSoundSystem'
 import { getRandomHumor } from '@/utils/humor'
+import { track } from '@/lib/analytics'
 
 interface Team { id: string; name: string; color: string; score: number }
 interface Question {
@@ -58,9 +60,9 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
 
   // Load answer phrases
   useEffect(() => {
-    ;(supabase.from('answer_phrases') as any)
+    supabase.from('answer_phrases')
       .select('category, text').eq('is_active', true)
-      .then(({ data }: any) => {
+      .then(({ data }) => {
         if (data) setAnswerPhrases({
           correct: data.filter((p: any) => p.category === 'correct').map((p: any) => p.text),
           wrong: data.filter((p: any) => p.category === 'wrong').map((p: any) => p.text),
@@ -79,11 +81,28 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
   }, [timeLeft, timerRunning, phase, playTick])
 
   const handleReveal = useCallback(() => {
-    if (phase !== 'idle') return
+    if (phase !== 'idle' || !store.isHost) return
     setPhase('revealing')
     setTimerRunning(false)
     setTimeout(() => setPhase('revealed'), 600)
-  }, [phase])
+  }, [phase, store.isHost])
+
+  const handleBuzz = useCallback(() => {
+    if (store.isHost || !store.playerTeamId || store.buzzedTeamId) return
+    
+    // Optimistic local update
+    store.setBuzzedTeamId(store.playerTeamId)
+    playTick()
+
+    // Broadcast buzz
+    if (store.broadcastChannel) {
+      store.broadcastChannel.send({
+        type: 'broadcast',
+        event: 'buzz',
+        payload: { teamId: store.playerTeamId }
+      })
+    }
+  }, [store, playTick])
 
   const finishQuestion = useCallback(async (team: Team | null) => {
     if (awarded) return
@@ -132,19 +151,50 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
     const remaining = liveQuestions.filter(q => !q.used).length
     const isLastQuestion = remaining === 0
 
-    // ── ASYNC NETWORK OPS (fire-and-forget after state is already updated) ──
+    // ── Analytics: track every question resolution ──
+    track('question_answered', {
+      session_id: liveStore.sessionId ?? '',
+      correct:    !!team && team.id === activeTeam?.id,
+      difficulty: q.difficulty ?? 'easy',
+    })
+
+    // ── SERVER-AUTHORITATIVE SCORING ──────────────────────────────────────
+    // The client does NOT send the points value.
+    // The server validates the request, looks up the scoring config from the DB,
+    // and atomically updates the score + turn. This prevents point manipulation.
     if (team) {
-      gameEngine.updateTeamScore(team.id, points)
-        .then(() => store.updateScore(team.id, (team.score || 0) + points))
-        .catch(() => console.warn('Network issue updating team score'))
-    }
-
-    gameEngine.markQuestionUsed(sq.id)
-      .catch(() => console.warn('Network issue marking question used'))
-
-    if (liveStore.sessionId) {
-      gameEngine.updateSessionTurn(liveStore.sessionId, nextTeam)
-        .catch(() => console.warn('Network issue updating turn'))
+      fetch('/api/game/submit-answer', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ sessionQuestionId: sq.id, teamId: team.id }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            // Update local UI with the server-confirmed points
+            store.updateScore(team.id, (team.score || 0) + data.pointsAwarded)
+          } else {
+            console.warn('[submit-answer] Server rejected:', data.error)
+            // Fallback: mark used locally at least
+            gameEngine.markQuestionUsed(sq.id).catch(() => {})
+          }
+        })
+        .catch(() => {
+          // Network failure fallback: keep local state, attempt legacy ops
+          console.warn('[submit-answer] Network error — falling back to legacy ops')
+          gameEngine.updateTeamScore(team.id, points)
+            .then(() => store.updateScore(team.id, (team.score || 0) + points))
+            .catch(() => {})
+          gameEngine.markQuestionUsed(sq.id).catch(() => {})
+          if (liveStore.sessionId) gameEngine.updateSessionTurn(liveStore.sessionId, nextTeam).catch(() => {})
+        })
+    } else {
+      // No winner — still mark question used and advance turn
+      gameEngine.markQuestionUsed(sq.id).catch(() => console.warn('Network issue marking question used'))
+      if (liveStore.sessionId) {
+        gameEngine.updateSessionTurn(liveStore.sessionId, nextTeam)
+          .catch(() => console.warn('Network issue updating turn'))
+      }
     }
 
     if (isLastQuestion) {
@@ -265,7 +315,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
 
         {/* ── MASCOT ── */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
-          <Mascot state={store.mascotState as any} size={64} isTalking={store.isTalking} color={teamColor} />
+          <Mascot state={store.mascotState} size={64} isTalking={store.isTalking} color={teamColor} />
         </div>
 
         {/* ── MAIN CONTENT ── */}
@@ -280,30 +330,73 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
 
           {/* Image */}
           {q.image_url && (
-            <div className="rounded-2xl overflow-hidden max-h-48 flex items-center justify-center">
-              <img src={q.image_url} alt="" className="w-full h-full object-contain" />
+            <div className="rounded-2xl overflow-hidden h-48 w-full relative flex items-center justify-center">
+              <Image src={q.image_url} alt="" fill className="object-contain" />
             </div>
           )}
 
-          {/* ── PHASE: idle → reveal button ── */}
+          {/* ── PHASE: idle → reveal button or buzz UI ── */}
           <AnimatePresence mode="wait">
             {phase === 'idle' && (
-              <motion.div key="reveal-btn"
+              <motion.div key="idle-ui"
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                className="flex justify-center mt-2">
-                <button onClick={handleReveal}
-                  className="group relative px-10 py-4 rounded-2xl font-black text-lg tracking-wide transition-all hover:scale-[1.03] active:scale-[0.97] overflow-hidden"
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.18)', color: 'white' }}>
-                  <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ background: `radial-gradient(circle at center, ${teamColor}20, transparent)` }} />
-                  <span className="relative flex items-center gap-2.5">
-                    <svg className="w-5 h-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    كشف الإجابة
-                  </span>
-                </button>
+                className="flex justify-center mt-2 flex-col gap-4">
+                
+                {/* For Host */}
+                {store.isHost ? (
+                  <>
+                    {store.buzzedTeamId && (
+                      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center p-3 rounded-2xl mb-2" style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                        <p className="text-sm font-bold uppercase text-amber-500/70 mb-1">فريق ضغط الزر!</p>
+                        <p className="text-2xl font-black text-amber-400">
+                          {teams.find(t => t.id === store.buzzedTeamId)?.name} 🎤
+                        </p>
+                      </motion.div>
+                    )}
+                    <button onClick={handleReveal}
+                      className="group relative px-10 py-4 rounded-2xl font-black text-lg tracking-wide transition-all hover:scale-[1.03] active:scale-[0.97] overflow-hidden mx-auto"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.18)', color: 'white' }}>
+                      <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ background: `radial-gradient(circle at center, ${teamColor}20, transparent)` }} />
+                      <span className="relative flex items-center gap-2.5">
+                        <svg className="w-5 h-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        كشف الإجابة
+                      </span>
+                    </button>
+                  </>
+                ) : (
+                  /* For Players */
+                  <div className="flex flex-col items-center">
+                    {store.buzzedTeamId ? (
+                      <div className="text-center p-6 rounded-3xl w-full border-2" style={{ 
+                        background: store.buzzedTeamId === store.playerTeamId ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        borderColor: store.buzzedTeamId === store.playerTeamId ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                      }}>
+                        {store.buzzedTeamId === store.playerTeamId ? (
+                          <div className="text-2xl font-black text-emerald-400">فريقك ضغط الزر! 🎤</div>
+                        ) : (
+                          <div className="text-2xl font-black text-rose-400">فريق آخر ضغط الزر! 🛑</div>
+                        )}
+                        <div className="text-sm text-white/50 mt-2 font-bold">في انتظار المضيف...</div>
+                      </div>
+                    ) : (
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleBuzz}
+                        className="w-48 h-48 rounded-full flex flex-col items-center justify-center border-4 shadow-2xl relative overflow-hidden group"
+                        style={{ background: 'linear-gradient(135deg, #ef4444, #991b1b)', borderColor: '#fca5a5' }}
+                      >
+                        <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-all"></div>
+                        <span className="text-5xl mb-2 relative z-10">🔴</span>
+                        <span className="text-3xl font-black relative z-10">إضغط!</span>
+                      </motion.button>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -352,61 +445,70 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                   )}
                 </AnimatePresence>
 
-                {/* Award section */}
-                {!awarded ? (
-                  <div className="flex flex-col gap-3">
-                    <p className="text-center text-sm font-bold uppercase tracking-widest text-white/35">
-                      من أجاب صحيح؟
-                    </p>
+                {/* Award section - ONLY HOST */}
+                {store.isHost && (
+                  !awarded ? (
+                    <div className="flex flex-col gap-3">
+                      <p className="text-center text-sm font-bold uppercase tracking-widest text-white/35">
+                        من أجاب صحيح؟
+                      </p>
 
-                    {/* Team buttons */}
-                    <div className={`grid gap-3 ${teams.length === 2 ? 'grid-cols-2' : teams.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                      {teams.map(team => (
-                        <motion.button key={team.id}
-                          whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}
-                          onClick={() => finishQuestion(team)}
-                          className="py-3 px-3 rounded-2xl font-black text-xl transition-all relative overflow-hidden group"
-                          style={{
-                            background: `${team.color}12`,
-                            border: `2px solid ${team.color}35`,
-                            color: team.color,
-                          }}>
-                          <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            style={{ background: `${team.color}15` }} />
-                          <span className="relative flex flex-col items-center gap-1">
-                            <span className="flex items-center gap-2">
-                              <span className="w-3 h-3 rounded-full" style={{ background: team.color }} />
-                              {team.name}
+                      {/* Team buttons */}
+                      <div className={`grid gap-3 ${teams.length === 2 ? 'grid-cols-2' : teams.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                        {teams.map(team => (
+                          <motion.button key={team.id}
+                            whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}
+                            onClick={() => finishQuestion(team)}
+                            className="py-3 px-3 rounded-2xl font-black text-xl transition-all relative overflow-hidden group"
+                            style={{
+                              background: `${team.color}12`,
+                              border: `2px solid ${team.color}35`,
+                              color: team.color,
+                            }}>
+                            <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{ background: `${team.color}15` }} />
+                            <span className="relative flex flex-col items-center gap-1">
+                              <span className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full" style={{ background: team.color }} />
+                                {team.name}
+                              </span>
+                              <span className="text-xs font-semibold opacity-50">{team.score} نقطة</span>
                             </span>
-                            <span className="text-xs font-semibold opacity-50">{team.score} نقطة</span>
-                          </span>
-                        </motion.button>
-                      ))}
-                    </div>
+                          </motion.button>
+                        ))}
+                      </div>
 
-                    {/* No one button */}
-                    <button onClick={() => finishQuestion(null)}
-                      className="w-full py-3 rounded-2xl font-bold text-base transition-all hover:scale-[1.01] active:scale-[0.99]"
+                      {/* No one button */}
+                      <button onClick={() => finishQuestion(null)}
+                        className="w-full py-3 rounded-2xl font-bold text-base transition-all hover:scale-[1.01] active:scale-[0.99]"
+                        style={{
+                          background: 'rgba(239,68,68,0.08)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239,68,68,0.22)',
+                        }}>
+                        لا أحد أجاب ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <motion.button
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      onClick={onClose}
+                      className="w-full py-4 rounded-2xl font-black text-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
                       style={{
-                        background: 'rgba(239,68,68,0.08)',
-                        color: '#f87171',
-                        border: '1px solid rgba(239,68,68,0.22)',
+                        background: `${teamColor}15`,
+                        border: `1px solid ${teamColor}30`,
+                        color: teamColor,
                       }}>
-                      لا أحد أجاب ✕
-                    </button>
+                      العودة للوحة ←
+                    </motion.button>
+                  )
+                )}
+                
+                {/* Player waiting state after reveal */}
+                {!store.isHost && (
+                  <div className="text-center py-6 text-white/40 font-bold border-t border-white/10 mt-2">
+                    في انتظار المضيف لتسجيل النقاط... ⏳
                   </div>
-                ) : (
-                  <motion.button
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    onClick={onClose}
-                    className="w-full py-4 rounded-2xl font-black text-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    style={{
-                      background: `${teamColor}15`,
-                      border: `1px solid ${teamColor}30`,
-                      color: teamColor,
-                    }}>
-                    العودة للوحة ←
-                  </motion.button>
                 )}
               </motion.div>
             )}

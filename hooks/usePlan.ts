@@ -7,6 +7,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import type { PlanType } from '@/lib/paddle'
+import { isUserAdmin } from '@/lib/admin'
 
 export function usePlan() {
   const [plan, setPlan]       = useState<PlanType>('free')
@@ -25,8 +26,15 @@ export function usePlan() {
         .eq('id', user.id)
         .single()
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setPlan(((data as any)?.plan_type as PlanType) ?? 'free')
+      const email = user.email
+      const rawPlan = (data as any)?.plan_type as PlanType ?? 'free'
+      
+      // Override for admin
+      if (email && isUserAdmin(email)) {
+        setPlan('pro')
+      } else {
+        setPlan(rawPlan)
+      }
 
       setLoading(false)
     }

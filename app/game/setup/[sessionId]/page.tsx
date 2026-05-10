@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -10,6 +11,8 @@ import Mascot from '@/components/Mascot'
 import toast from 'react-hot-toast'
 import { useFeedbackStore } from '@/store/feedbackStore'
 import { useTranslator } from '@/lib/i18n'
+import { usePlan } from '@/hooks/usePlan'
+import { maxTeamsForPlan } from '@/lib/paddle'
 
 // ─────────────────────────────────────────────
 // Types
@@ -44,7 +47,6 @@ interface Shot { x: number; y: number; vx: number; vy: number; len: number; op: 
 // ─────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────
-const MAX_TEAMS = 4
 const MAX_CATS  = 6
 const DRAFT_KEY = 'gg-draft'
 
@@ -825,7 +827,7 @@ function PunishmentConfig({
               {/* Punishment list */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-2">قائمة العقوبات</p>
-                <div className="space-y-1.5 max-h-44 overflow-y-auto no-scrollbar">
+                <div className="space-y-1 max-h-28 overflow-y-auto no-scrollbar">
                   {punishments.map(p => {
                     const lm = {
                       1: { color:'#22c55e', bg:'rgba(34,197,94,0.15)'  },
@@ -902,7 +904,7 @@ function TeamsModal({
   teams, setTeams, sessionName, setSessionName,
   punishments, setPunishments, punishEnabled, setPunishEnabled,
   punishMode, setPunishMode, voicesEnabled, setVoicesEnabled,
-  onClose, onStart, isStarting, accentColor,
+  onClose, onStart, isStarting, accentColor, maxTeams,
 }: {
   teams: Team[]; setTeams: React.Dispatch<React.SetStateAction<Team[]>>
   sessionName: string; setSessionName: React.Dispatch<React.SetStateAction<string>>
@@ -911,15 +913,30 @@ function TeamsModal({
   punishMode: PunishmentMode; setPunishMode: (m:PunishmentMode)=>void
   voicesEnabled: boolean; setVoicesEnabled: (v:boolean)=>void
   onClose: ()=>void; onStart: ()=>void
-  isStarting: boolean; accentColor: string
+  isStarting: boolean; accentColor: string; maxTeams: number
 }) {
   const t = useTranslator()
+  const router = useRouter()
   const [step, setStep] = useState<0|1>(0)
 
   const updateName  = (i:number,name:string)  => setTeams(p=>p.map((t,j)=>j===i?{...t,name}:t))
   const updateColor = (i:number,color:string) => setTeams(p=>p.map((t,j)=>j===i?{...t,color}:t))
   const removeTeam  = (i:number)              => setTeams(p=>p.filter((_,j)=>j!==i))
+  
+  const FUNNY_NAMES_AR = ["العباقرة التائهون", "فرسان الشاورما", "الأسود النائمة", "أبطال الديجيتال", "عصابة الرداء الملون", "صقور الإنترنت", "أصدقاء السهر", "الملوك بلا عرش"]
+  const FUNNY_NAMES_EN = ["The Lost Geniuses", "Shawarma Knights", "Sleeping Lions", "Keyboard Warriors", "The Colorful Crew", "Internet Falcons", "Midnight Friends", "Kings Without Thrones"]
+  
+  const randomizeName = (i:number) => {
+    const list = t('setup_step_final') === 'Final Step' ? FUNNY_NAMES_EN : FUNNY_NAMES_AR
+    const random = list[Math.floor(Math.random() * list.length)]
+    updateName(i, random)
+  }
+
   const addTeam = () => {
+    if (teams.length >= maxTeams) {
+      router.push('/pricing')
+      return
+    }
     const used = new Set(teams.map(t=>t.color))
     const next = TEAM_COLORS.find(c=>!used.has(c)) ?? TEAM_COLORS[0]
     setTeams(p=>[...p,{name:`Team ${p.length+1}`,color:next}])
@@ -932,14 +949,7 @@ function TeamsModal({
       <SpaceBackground teams={teams} />
 
       {/* Top controls */}
-      <div className="absolute top-5 inset-x-6 z-20 flex items-center justify-between">
-        {/* Voice toggle */}
-        <button onClick={()=>setVoicesEnabled(!voicesEnabled)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10
-            hover:bg-white/10 transition-all text-xs font-bold text-white/40 hover:text-white">
-          <span>{voicesEnabled ? '🔊' : '🔇'}</span>
-          <span>{voicesEnabled ? 'أصوات مفعّلة' : 'أصوات معطّلة'}</span>
-        </button>
+      <div className="absolute top-5 inset-x-6 z-20 flex items-center justify-end">
         <button onClick={onClose}
           className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center
             justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">✕</button>
@@ -947,22 +957,19 @@ function TeamsModal({
 
       <motion.div initial={{ y:50, scale:0.94, opacity:0 }} animate={{ y:0, scale:1, opacity:1 }}
         exit={{ y:50, scale:0.94, opacity:0 }} transition={{ duration:0.38, ease:[0.4,0,0.2,1] }}
-        className="relative z-10 w-full max-w-4xl px-4 overflow-y-auto no-scrollbar max-h-[92vh]">
-        <div className="bg-white/[0.04] backdrop-blur-[50px] border border-white/[0.08] rounded-[40px] p-8
+        className="relative z-10 w-full max-w-4xl px-4 flex items-center justify-center">
+        <div className="bg-white/[0.04] backdrop-blur-[50px] border border-white/[0.08] rounded-[32px] p-5 w-full
           shadow-[0_0_100px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.08)]">
 
           <AnimatePresence mode="wait">
             {step === 0 ? (
               <motion.div key="editor" initial={{ opacity:0, x:-28 }} animate={{ opacity:1, x:0 }}
-                exit={{ opacity:0, x:28 }} transition={{ duration:0.22 }} className="space-y-6">
+                exit={{ opacity:0, x:28 }} transition={{ duration:0.22 }} className="space-y-3">
 
                 {/* Session name */}
                 <div className="text-center">
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/25 mb-2">
-                    {t('setup_step_final')}
-                  </p>
                   <input type="text" value={sessionName} onChange={e=>setSessionName(e.target.value)}
-                    className="bg-transparent text-3xl md:text-4xl font-black text-center w-full
+                    className="bg-transparent text-2xl md:text-3xl font-black text-center w-full
                       outline-none placeholder-white/10 text-white"
                     placeholder={t('setup_session_ph')} />
                 </div>
@@ -972,7 +979,7 @@ function TeamsModal({
                   {teams.map((team,idx) => (
                     <motion.div key={idx} initial={{ opacity:0, y:18 }} animate={{ opacity:1, y:0 }}
                       transition={{ delay:idx*0.07 }}
-                      className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-4 relative group"
+                      className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-3 relative group"
                       style={{ borderTopColor:team.color, borderTopWidth:3 }}>
                       {teams.length>2 && (
                         <button onClick={()=>removeTeam(idx)}
@@ -983,13 +990,19 @@ function TeamsModal({
                       <motion.div
                         animate={{ y:[0,-6,0] }}
                         transition={{ duration:1.6+idx*0.3, repeat:Infinity, ease:'easeInOut' }}
-                        className="flex justify-center mb-3"
+                        className="flex justify-center mb-1.5"
                         onClick={() => playMascotSound(idx, voicesEnabled)}>
-                        <Mascot state="idle" size={58} color={team.color} />
+                        <Mascot state="idle" size={36} color={team.color} />
                       </motion.div>
-                      <input value={team.name} onChange={e=>updateName(idx,e.target.value)}
-                        className="w-full bg-transparent text-center font-bold text-sm mb-3 outline-none
-                          border-b border-white/10 pb-1.5 text-white focus:border-white/25 transition-colors" />
+                      <div className="relative mb-3">
+                        <input value={team.name} onChange={e=>updateName(idx,e.target.value)}
+                          className="w-full bg-transparent text-center font-bold text-sm outline-none
+                            border-b border-white/10 pb-1.5 text-white focus:border-white/25 transition-colors pe-6" />
+                        <button onClick={() => randomizeName(idx)} title="Randomize"
+                          className="absolute end-0 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/80 transition-colors text-xs">
+                          🎲
+                        </button>
+                      </div>
                       <div className="flex gap-1.5 justify-center">
                         {TEAM_COLORS.map(c => (
                           <button key={c} onClick={()=>updateColor(idx,c)}
@@ -1005,7 +1018,7 @@ function TeamsModal({
                       </div>
                     </motion.div>
                   ))}
-                  {teams.length < MAX_TEAMS && (
+                  {teams.length < maxTeams ? (
                     <motion.button onClick={addTeam}
                       whileHover={{ scale:1.03 }} whileTap={{ scale:0.97 }}
                       className="rounded-3xl border-2 border-dashed border-white/[0.07] flex flex-col
@@ -1015,6 +1028,19 @@ function TeamsModal({
                       <span className="text-[10px] font-black uppercase tracking-widest">
                         {t('setup_add_team')}
                       </span>
+                    </motion.button>
+                  ) : (
+                    // Locked — plan upgrade prompt
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      onClick={() => router.push('/pricing')}
+                      className="rounded-3xl border-2 border-dashed border-amber-500/30 flex flex-col
+                        items-center justify-center gap-2 transition-all min-h-[160px] group"
+                      style={{ background: 'rgba(245,158,11,0.04)' }}
+                    >
+                      <span className="text-2xl group-hover:scale-110 transition-transform">🔒</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-400/60">الترقية</span>
+                      <span className="text-[9px] text-amber-400/40 text-center px-2 leading-tight">أضف المزيد مع Pro</span>
                     </motion.button>
                   )}
                 </div>
@@ -1026,12 +1052,38 @@ function TeamsModal({
                   mode={punishMode} setMode={setPunishMode}
                 />
 
-                {/* Next → matchup */}
-                <div className="flex justify-center pt-2">
+                {/* Punishment Preview Ticker */}
+                <AnimatePresence>
+                  {punishEnabled && punishments.filter(p => p.enabled).length > 0 && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      className="mt-6 overflow-hidden rounded-2xl bg-red-500/10 border border-red-500/20 py-2 relative">
+                      {/* Gradient Masks for fade effect */}
+                      <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#07071A] to-transparent z-10" />
+                      <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#07071A] to-transparent z-10" />
+                      <div className="flex whitespace-nowrap animate-[marquee_20s_linear_infinite] px-4">
+                        {[...punishments.filter(p => p.enabled), ...punishments.filter(p => p.enabled)].map((p, i) => (
+                          <span key={i} className="mx-6 text-[10px] font-black text-red-400 uppercase tracking-widest inline-flex items-center gap-1.5">
+                            <span className="text-sm">⚠️</span> {p.text}
+                          </span>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Voice & Next Actions */}
+                <div className="flex items-center justify-between pt-2">
+                  <button onClick={()=>setVoicesEnabled(!voicesEnabled)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10
+                      hover:bg-white/10 transition-all text-xs font-bold text-white/40 hover:text-white">
+                    <span>{voicesEnabled ? '🔊' : '🔇'}</span>
+                    <span>{voicesEnabled ? 'أصوات مفعّلة' : 'أصوات معطّلة'}</span>
+                  </button>
+
                   <motion.button onClick={()=>setStep(1)}
                     whileHover={{ scale:1.04 }} whileTap={{ scale:0.97 }}
-                    className="group relative px-14 py-4 rounded-2xl overflow-hidden bg-white
-                      font-black text-black uppercase tracking-[0.22em] text-sm">
+                    className="group relative px-8 py-2.5 rounded-2xl overflow-hidden bg-white
+                      font-black text-black uppercase tracking-[0.22em] text-xs">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/10
                       to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                     <span className="relative">معاينة المباراة ⚔</span>
@@ -1070,6 +1122,8 @@ export default function GameSetupPage() {
   const supabase = useMemo(()=>createClient(),[])
   const t = useTranslator()
   const { selectCategories, generateQuestions } = useSession()
+  const { plan } = usePlan()
+  const planMaxTeams = maxTeamsForPlan(plan)
 
   // ── Core state ──
   const [sessionName,        setSessionName]        = useState(lang === 'AR' ? 'جلسة الأصدقاء' : 'Friends Session')
@@ -1095,6 +1149,7 @@ export default function GameSetupPage() {
   const [sortBy,       setSortBy]       = useState<'admin'|'alpha'|'popular'|'new'>('admin')
   const [hoveredTopic, setHoveredTopic] = useState<Topic|null>(null)
   const [previewY,     setPreviewY]     = useState(0)
+  const [customSetup,  setCustomSetup]  = useState<any>(null)
 
   const prevCountRef    = useRef(0)
   const draftRestoredRef = useRef(false)
@@ -1116,6 +1171,22 @@ export default function GameSetupPage() {
     if (!sessionId) return
     async function load() {
       try {
+        // Studio Template Injection
+        const templateId = searchParams.get('template')
+        if (templateId) {
+          const { getTransferData } = await import('@/lib/indexedDB')
+          const customData = await getTransferData(`studio-transfer-${sessionId}`)
+          
+          if (customData) {
+            setCustomSetup(customData)
+            setSessionName((customData as any).name)
+            // Inject correct category IDs to match gameEngine logic
+            setSelectedCategories((customData as any).categories.map(() => crypto.randomUUID()))
+            draftRestoredRef.current = true
+            setShowTeams(true) // Skip to team setup
+          }
+        }
+
         const [tR,cR,sR] = await Promise.all([
           (supabase.from('topics')     as any).select('*').order('order_index'),
           (supabase.from('categories') as any).select('*'),
@@ -1240,9 +1311,12 @@ export default function GameSetupPage() {
     return ()=>window.removeEventListener('keydown',h)
   },[activeTopic,filteredTopics,toggleCategory])
 
-  // ── Start game ──
+   // ── Start game ──
   const handleStartGame = async ()=>{
-    if (!sessionId||selectedCategories.length===0) { toast.error(t('setup_error_cat')); return }
+    if (!sessionId || (!customSetup && selectedCategories.length === 0)) { 
+      toast.error(t('setup_error_cat'))
+      return 
+    }
     setIsStarting(true); setShowTeams(false); setIsGenerating(true)
     try {
       await Promise.all([
@@ -1256,8 +1330,10 @@ export default function GameSetupPage() {
       await (supabase.from('teams') as any).insert(
         teams.map(t=>({ session_id:sessionId, name:t.name, color:t.color, score:0 }))
       )
-      await selectCategories(sessionId,selectedCategories)
-      await generateQuestions(sessionId)
+      if (!customSetup) {
+        await selectCategories(sessionId,selectedCategories)
+      }
+      await generateQuestions(sessionId, customSetup)
       await (supabase.from('sessions') as any).update({ state:'playing' }).eq('id',sessionId)
       await gameEngine.startGame(sessionId)
       try { localStorage.removeItem(`${DRAFT_KEY}-${sessionId}`) } catch {}
@@ -1274,6 +1350,13 @@ export default function GameSetupPage() {
   const activeIndex   = activeTopic?filteredTopics.findIndex(t=>t.id===activeTopic.id):-1
   const dir           = lang==='AR'?'rtl':'ltr'
   const allCategories = useMemo(()=>topics.flatMap(t=>t.categories),[topics])
+
+  const getMascotMessage = () => {
+    if (selectedCount === 0) return lang === 'AR' ? 'اختر بعض الفئات لنبدأ التحدي!' : 'Pick some categories to start the challenge!'
+    if (selectedCount < 3) return lang === 'AR' ? 'بداية جيدة! هل لديك الجرأة لاختيار المزيد؟' : 'Good start! Dare to pick more?'
+    if (atMax) return lang === 'AR' ? 'أنت مستعد تماماً! حان وقت المباراة!' : 'You are fully loaded! Time for the matchup!'
+    return lang === 'AR' ? 'اختيارات ممتازة! واصل...' : 'Excellent choices! Keep going...'
+  }
 
   if (!mounted||isLoading) return (
     <div className="min-h-screen bg-[#07071A] flex items-center justify-center">
@@ -1294,15 +1377,15 @@ export default function GameSetupPage() {
       {/* Dynamic background */}
       <AnimatePresence mode="sync">
         {activeTopic?.background_url?(
-          <motion.div key={`bg-${activeTopic.id}`} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            transition={{ duration:0.9 }} className="fixed inset-0 pointer-events-none z-0">
-            <img src={activeTopic.background_url} alt="" className="w-full h-full object-cover"/>
-            <div className="absolute inset-0 bg-[#07071A]/85"/>
+          <motion.div key={`bg-${activeTopic.id}`} initial={{ opacity:0, scale: 1.05 }} animate={{ opacity:1, scale: 1 }} exit={{ opacity:0, scale: 0.95 }}
+            transition={{ duration:1.5, ease: "easeInOut" }} className="fixed inset-0 pointer-events-none z-0">
+            <img src={activeTopic.background_url} alt="" className="w-full h-full object-cover blur-[2px] opacity-80" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#07071A]/90 via-[#07071A]/70 to-[#07071A]" />
           </motion.div>
         ):(
           <motion.div key={`glow-${activeTopic?.id??'x'}`} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            transition={{ duration:0.6 }} className="fixed inset-0 pointer-events-none z-0"
-            style={{ background:`radial-gradient(ellipse at 65% 20%, ${activeColor}16 0%, transparent 60%)` }}/>
+            transition={{ duration:1.5, ease: "easeInOut" }} className="fixed inset-0 pointer-events-none z-0"
+            style={{ background:`radial-gradient(ellipse at 50% 0%, ${activeColor}25 0%, transparent 70%), radial-gradient(ellipse at 100% 100%, ${activeColor}15 0%, transparent 50%)` }}/>
         )}
       </AnimatePresence>
 
@@ -1573,14 +1656,25 @@ export default function GameSetupPage() {
             )}
           </AnimatePresence>
 
-          {/* Selected chip strip */}
+          {/* Selected chip strip & Mascot Guidance */}
           <AnimatePresence>
             {selectedCount>0&&(
               <motion.div initial={{ y:80, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:80, opacity:0 }}
                 transition={{ duration:0.3, ease:[0.4,0,0.2,1] }}
                 className="fixed bottom-0 start-72 end-0 z-20 px-10 py-4
-                  bg-gradient-to-t from-[#07071A]/92 via-[#07071A]/60 to-transparent backdrop-blur-sm">
-                <div className="flex items-center gap-2 flex-wrap">
+                  bg-gradient-to-t from-[#07071A]/95 via-[#07071A]/80 to-transparent backdrop-blur-md">
+                  
+                {/* Mascot Guidance */}
+                <div className="absolute -top-16 end-10 flex items-end gap-4 pointer-events-none">
+                  <div className="bg-white/10 backdrop-blur-xl border border-white/20 text-white text-xs font-black px-4 py-2 rounded-2xl rounded-br-none shadow-xl">
+                    {getMascotMessage()}
+                  </div>
+                  <div className="w-16 h-16 drop-shadow-2xl">
+                    <Mascot state={(atMax ? "happy" : "idle") as any} size={64} color={activeColor} />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap relative z-10">
                   {selectedCategories.map(id=>{
                     const cat   = allCategories.find(c=>c.id===id)
                     const owner = topics.find(t=>t.id===cat?.topic_id)
@@ -1618,6 +1712,7 @@ export default function GameSetupPage() {
             onStart={handleStartGame}
             isStarting={isStarting}
             accentColor={activeColor}
+            maxTeams={planMaxTeams}
           />
         )}
       </AnimatePresence>

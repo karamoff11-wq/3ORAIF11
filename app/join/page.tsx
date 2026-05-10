@@ -83,11 +83,12 @@ export default function JoinPage() {
     setError('')
 
     try {
-      const { data: session, error: err } = await (supabase
-        .from('sessions') as any)
+      const { data, error: err } = await supabase
+        .from('sessions')
         .select('id, state, mode')
         .eq('join_code', joinCode)
         .single()
+      const session = data as any
 
       if (err || !session) {
         setError('كود الانضمام غير صحيح أو منتهي الصلاحية')

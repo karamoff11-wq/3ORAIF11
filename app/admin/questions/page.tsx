@@ -4,17 +4,18 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
+import { QuestionWithCategory, AdminCategory } from '@/types/admin'
 
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 const DIFF_LABELS: Record<string, string> = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' }
 
 export default function AdminQuestionsPage() {
   const supabase = createClient()
-  const [questions, setQuestions] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
+  const [questions, setQuestions] = useState<QuestionWithCategory[]>([])
+  const [categories, setCategories] = useState<AdminCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
-  const [editing, setEditing] = useState<any | null>(null)
+  const [editing, setEditing] = useState<QuestionWithCategory | null>(null)
   const [form, setForm] = useState({ category_id: '', difficulty: 'easy' as 'easy'|'medium'|'hard', question: '', answer: '', media_url: '' })
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
@@ -23,8 +24,8 @@ export default function AdminQuestionsPage() {
 
   async function load() {
     const [q, c] = await Promise.all([
-      (supabase.from('questions') as any).select('*, categories(name)').order('created_at', { ascending: false }),
-      (supabase.from('categories') as any).select('*').order('name'),
+      supabase.from('questions').select('*, categories(name)').order('created_at', { ascending: false }),
+      supabase.from('categories').select('*').order('name'),
     ])
     setQuestions(q.data ?? [])
     setCategories(c.data ?? [])
@@ -34,9 +35,10 @@ export default function AdminQuestionsPage() {
 
   function openAdd() {
     setForm({ category_id: '', difficulty: 'easy', question: '', answer: '', media_url: '' })
+
     setEditing(null); setModal(true)
   }
-  function openEdit(q: any) {
+  function openEdit(q: QuestionWithCategory) {
     setForm({ category_id: q.category_id ?? '', difficulty: q.difficulty, question: q.question, answer: q.answer, media_url: q.media_url ?? '' })
     setEditing(q); setModal(true)
   }

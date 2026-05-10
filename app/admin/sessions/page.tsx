@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
+import { SessionWithDetails } from '@/types/admin'
 
 export default function AdminSessionsPage() {
   const supabase = createClient()
-  const [sessions, setSessions] = useState<any[]>([])
+  const [sessions, setSessions] = useState<SessionWithDetails[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export default function AdminSessionsPage() {
                       else {
                         toast.success('تم إنهاء الجلسة بنجاح')
                         // Reload data
-                        const { data } = await supabase.from('sessions').select(`*, teams(id,name,score,color), profiles(email)`).order('created_at', { ascending: false }).limit(50)
+                        const { data } = await (supabase.from('sessions') as any).select(`*, teams(id,name,score,color), profiles(email)`).order('created_at', { ascending: false }).limit(50)
                         setSessions(data ?? [])
                       }
                     }}

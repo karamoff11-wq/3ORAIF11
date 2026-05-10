@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -7,10 +8,13 @@ import { createClient } from '@/lib/supabaseClient'
 import { useGameStore } from '@/store/gameStore'
 import { useFeedbackStore } from '@/store/feedbackStore'
 import GameBoard from '@/components/GameBoard'
-import FightingParticles from '@/components/FightingParticles'
+import dynamic from 'next/dynamic'
 import { useMascotBehavior } from '@/hooks/useMascotBehavior'
 import Mascot from '@/components/Mascot'
 import { useTranslator } from '@/lib/i18n'
+
+// Lazy-loaded: heavy canvas animation, only needed during active gameplay
+const FightingParticles = dynamic(() => import('@/components/FightingParticles'), { ssr: false })
 
 function CinematicLoader({ teams, lang }: { teams: { color: string; name: string }[], lang: 'AR' | 'EN' }) {
   const t = useTranslator()
@@ -136,6 +140,16 @@ export default function GamePage() {
       setSession(session.id, session.mode as any)
       setPhase(session.state as any)
 
+      // Identify Host vs Player
+      const { data: { user } } = await supabase.auth.getUser()
+      const isHost = user?.id === session.host_id
+      useGameStore.getState().setIsHost(isHost)
+
+      if (!isHost) {
+        const pTeam = sessionStorage.getItem(`trivia_team_${sessionId}`)
+        if (pTeam) useGameStore.getState().setPlayerTeamId(pTeam)
+      }
+
       try {
         const [teamsRes, questionsRes, sessionCatsRes, configRes] = await Promise.all([
           (supabase.from('teams') as any).select('*').eq('session_id', sessionId).order('created_at'),
@@ -187,8 +201,36 @@ export default function GamePage() {
         p => { updateScore((p.new as any).id, (p.new as any).score) })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'session_questions', filter: `session_id=eq.${sessionId}` },
         p => { markQuestionUsed((p.new as any).id) })
+      // ── SUPABASE BROADCAST FOR REALTIME EVENTS ──
+      .on('broadcast', { event: 'open_question' }, (payload) => {
+        const st = useGameStore.getState()
+        if (!st.isHost) {
+          st.setSelectedQuestion(payload.payload.sq)
+          st.setBuzzedTeamId(null)
+        }
+      })
+      .on('broadcast', { event: 'close_question' }, () => {
+        const st = useGameStore.getState()
+        if (!st.isHost) {
+          st.setSelectedQuestion(null)
+          st.setBuzzedTeamId(null)
+        }
+      })
+      .on('broadcast', { event: 'buzz' }, (payload) => {
+        const st = useGameStore.getState()
+        // First buzz wins!
+        if (!st.buzzedTeamId) {
+          st.setBuzzedTeamId(payload.payload.teamId)
+        }
+      })
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
+
+    useGameStore.getState().setBroadcastChannel(ch)
+
+    return () => { 
+      supabase.removeChannel(ch)
+      useGameStore.getState().setBroadcastChannel(null)
+    }
   }, [sessionId, supabase, setPhase, setCurrentQuestion, setCurrentTeam, updateScore, markQuestionUsed])
 
   if (!mounted) return null

@@ -5,16 +5,17 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
 import MediaCropEditor, { type CropConfig } from '@/components/MediaCropEditor'
+import { CategoryWithQuestions, AdminCategory } from '@/types/admin'
 
 const ICONS = ['📚','🌍','🔬','📜','⚽','🎬','🧠','🎵','🍔','🏛️','💻','✈️','🐾','🧩','🎯']
 
 export default function AdminCategoriesPage() {
   const supabase = createClient()
-  const [cats, setCats] = useState<any[]>([])
-  const [topics, setTopics] = useState<any[]>([])
+  const [cats, setCats] = useState<CategoryWithQuestions[]>([])
+  const [topics, setTopics] = useState<AdminCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
-  const [editing, setEditing] = useState<any | null>(null)
+  const [editing, setEditing] = useState<CategoryWithQuestions | null>(null)
   const [form, setForm] = useState({ id: '', name: '', icon: '📚', topic_id: '', image_url: '', hide_icon: false })
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -24,8 +25,8 @@ export default function AdminCategoriesPage() {
 
   async function load() {
     const [catsRes, topicsRes] = await Promise.all([
-      (supabase.from('categories') as any).select('*, topics(name, color), questions(count)').order('name'),
-      (supabase.from('topics') as any).select('id, name').order('order_index')
+      supabase.from('categories').select('*, topics(name, color), questions(count)').order('name'),
+      supabase.from('topics').select('id, name').order('order_index')
     ])
     
     setCats(catsRes.data ?? [])
@@ -39,7 +40,7 @@ export default function AdminCategoriesPage() {
     setEditing(null)
     setModal(true) 
   }
-  function openEdit(c: any) { 
+  function openEdit(c: CategoryWithQuestions) { 
     setForm({ id: c.id, name: c.name, icon: c.icon ?? '📚', topic_id: c.topic_id || '', image_url: c.image_url || '', hide_icon: c.hide_icon || false })
     setCropConfig(c.crop_config || null)
     setEditing(c)
@@ -97,7 +98,7 @@ export default function AdminCategoriesPage() {
   }
 
   async function del(id: string) {
-    const { error } = await (supabase.from('categories') as any).delete().eq('id', id)
+    const { error } = await supabase.from('categories').delete().eq('id', id)
     if (error) { toast.error(error.message); return }
     toast.success('تم الحذف'); setDeleteId(null); load()
   }

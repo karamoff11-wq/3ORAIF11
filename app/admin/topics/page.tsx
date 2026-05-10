@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
 import MediaCropEditor, { type CropConfig } from '@/components/MediaCropEditor'
+import { Topic } from '@/types/admin'
 
 // ─────────────────────────────────────────────
 // Constants
@@ -120,10 +121,10 @@ const FALLBACK_CATS = [
 export default function AdminTopicsPage() {
   const supabase = createClient()
 
-  const [topics,   setTopics]   = useState<any[]>([])
+  const [topics,   setTopics]   = useState<Topic[]>([])
   const [loading,  setLoading]  = useState(true)
   const [modal,    setModal]    = useState(false)
-  const [editing,  setEditing]  = useState<any | null>(null)
+  const [editing,  setEditing]  = useState<Topic | null>(null)
   const [saving,   setSaving]   = useState(false)
   const [uploading,setUploading]= useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -146,8 +147,8 @@ export default function AdminTopicsPage() {
     setLoading(true)
     try {
       const [topicsRes, catsRes] = await Promise.all([
-        (supabase.from('topics')     as any).select('*').order('order_index'),
-        (supabase.from('categories') as any).select('*'),
+        supabase.from('topics').select('*').order('order_index'),
+        supabase.from('categories').select('*'),
       ])
 
       let rawTopics: any[] = topicsRes.data ?? []
@@ -161,7 +162,7 @@ export default function AdminTopicsPage() {
 
       const merged = rawTopics.map(topic => ({
         ...topic,
-        categories: rawCats.filter((c: any) => c.topic_id === topic.id),
+        categories: rawCats.filter(c => c.topic_id === topic.id),
       }))
 
       setTopics(merged)
@@ -191,7 +192,7 @@ export default function AdminTopicsPage() {
   }
 
   // ── Open edit modal ──
-  function openEdit(tp: any) {
+  function openEdit(tp: Topic) {
     setForm({
       id:          tp.id,
       name:        tp.name        ?? '',
@@ -254,7 +255,7 @@ export default function AdminTopicsPage() {
 
   // ── Delete ──
   async function del(id: string) {
-    const { error } = await (supabase.from('topics') as any).delete().eq('id', id)
+    const { error } = await supabase.from('topics').delete().eq('id', id)
     if (error) { toast.error(error.message); return }
     toast.success('تم الحذف')
     setDeleteId(null)

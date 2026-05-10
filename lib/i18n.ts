@@ -159,6 +159,27 @@ export const translations = {
     dash_logout_toast:    'تم تسجيل الخروج',
     logout_success:       'تم تسجيل الخروج بنجاح',
 
+    // PROFILE
+    prof_identity:        'الهوية الرقمية',
+    prof_dna:             'تحليل الأداء الرقمي',
+    prof_vault:           'خزينة الأوسمة',
+    prof_audit:           'سجل المواجهات',
+    prof_mastery:         'إتقان المواضيع',
+    prof_clutch:          'معدل الحسم',
+    prof_rivals:          'المنافسون اللدودون',
+    prof_rank:            'الترتيب العالمي',
+    prof_exp:             'نقاط الخبرة',
+    prof_accuracy:        'دقة الإجابات',
+    prof_streak:          'أطول سلسلة',
+    prof_players:         'إجمالي اللاعبين',
+    prof_playtime:        'ساعات اللعب',
+    prof_back:            'العودة للمنصة',
+    prof_founder:         'عضو مؤسس',
+    prof_expert:          'خبير معلومات',
+    prof_victory:         'انتصار',
+    prof_report:          'عرض التقرير',
+    prof_no_sessions:     'لا توجد جلسات مسجلة بعد',
+
     // GAME SETUP
     setup_title:          'تجهيز اللعبة',
     setup_teams:          'الفرق',
@@ -421,7 +442,6 @@ export const translations = {
     setup_sort_new:       'Newest',
     setup_add_team:       'Add Team',
     setup_max_error:      'Maximum 6 categories only',
-    side_logout:          'Logout',
 
     // DASHBOARD EXTRA
     dash_recent_sessions: 'Recent Sessions',
@@ -432,6 +452,27 @@ export const translations = {
     dash_welcome_toast:   'Welcome to Al-Arif! 🎉',
     dash_logout_toast:    'Logged out',
     logout_success:       'Logged out successfully',
+
+    // PROFILE
+    prof_identity:        'Digital Identity',
+    prof_dna:             'Performance DNA',
+    prof_vault:           'The Trophy Vault',
+    prof_audit:           'Match History Audit',
+    prof_mastery:         'Subject Mastery',
+    prof_clutch:          'Clutch Factor',
+    prof_rivals:          'Top Rivals',
+    prof_rank:            'Global Rank',
+    prof_exp:             'Exp Points',
+    prof_accuracy:        'Accuracy',
+    prof_streak:          'Best Streak',
+    prof_players:         'Total Players',
+    prof_playtime:        'Play Time',
+    prof_back:            'Back to Hub',
+    prof_founder:         'Founder Member',
+    prof_expert:          'Knowledge Expert',
+    prof_victory:         'Victory',
+    prof_report:          'View Report',
+    prof_no_sessions:     'No sessions recorded yet',
 
     // GAME SETUP
     setup_title:          'Game Setup',
@@ -563,7 +604,7 @@ export type TranslationKey = keyof typeof translations['AR']
 
 export function createTranslator(lang: Lang) {
   return function t(key: TranslationKey): string {
-    return (translations[lang] as any)[key] ?? (translations['AR'] as any)[key] ?? key
+    return translations[lang][key] ?? translations['AR'][key] ?? key
   }
 }
 

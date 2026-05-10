@@ -109,4 +109,8 @@ export interface GameState {
   isTalking: boolean
   scoringConfig: ScoringConfig
   thinkingCount: number
+  isHost: boolean
+  playerTeamId: string | null
+  buzzedTeamId: string | null
+  broadcastChannel: import('@supabase/supabase-js').RealtimeChannel | null
 }

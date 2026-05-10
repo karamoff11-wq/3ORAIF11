@@ -9,8 +9,9 @@ export const PADDLE_CONFIG = {
 
   // Price IDs from your Paddle dashboard
   prices: {
-    pro:  process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO  ?? '',
-    team: process.env.NEXT_PUBLIC_PADDLE_PRICE_TEAM ?? '',
+    single: process.env.NEXT_PUBLIC_PADDLE_PRICE_SINGLE ?? '',
+    five:   process.env.NEXT_PUBLIC_PADDLE_PRICE_FIVE   ?? '',
+    ten:    process.env.NEXT_PUBLIC_PADDLE_PRICE_TEN    ?? '',
   },
 }
 
@@ -19,7 +20,7 @@ export type PlanType = 'free' | 'pro' | 'team'
 
 // Map plan ID → Paddle price ID
 export function getPriceId(plan: 'pro' | 'team'): string {
-  return PADDLE_CONFIG.prices[plan]
+  return PADDLE_CONFIG.prices[plan as any as keyof typeof PADDLE_CONFIG.prices]
 }
 
 // Helper: is the current plan paid?

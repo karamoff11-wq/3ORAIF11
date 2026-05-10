@@ -32,7 +32,7 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Protected routes
-  const protectedRoutes = ['/dashboard', '/game', '/admin']
+  const protectedRoutes = ['/dashboard', '/admin', '/game/setup']
   const isProtected = protectedRoutes.some((r) => pathname.startsWith(r))
 
   if (isProtected && !user) {

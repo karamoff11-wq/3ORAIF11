@@ -43,6 +43,10 @@ export default function JoinSessionPage() {
       name: playerName.trim(),
     })
     if (error) { toast.error('فشل الانضمام: ' + error.message); setJoining(false); return }
+    
+    // Save team ID locally so the GameBoard knows which buzzer to press
+    sessionStorage.setItem(`trivia_team_${sessionId}`, selectedTeam)
+    
     toast.success(`مرحباً ${playerName}! 🎮`)
     router.push(`/game/${sessionId}`)
   }
