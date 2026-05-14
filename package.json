@@ -3,31 +3,30 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
     "@google/generative-ai": "^0.24.1",
     "@paddle/paddle-js": "^1.6.4",
-    "@sentry/nextjs": "^10.52.0",
-    "@supabase/ssr": "^0.10.2",
+    "@sentry/cloudflare": "^8.0.0",
     "@supabase/supabase-js": "^2.104.1",
-    "@vercel/og": "^0.11.1",
     "framer-motion": "^12.38.0",
     "howler": "^2.2.4",
     "lottie-react": "^2.4.1",
-    "next": "16.2.4",
+    "next": "15.1.6",
     "posthog-js": "^1.372.10",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hot-toast": "^2.6.0",
-    "resend": "^6.12.3",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241231.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/howler": "^2.2.12",
@@ -35,10 +34,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
-    "pg": "^8.20.0",
+    "eslint-config-next": "15.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^3.101.0"
   },
   "engines": {
     "node": ">=20.0.0"

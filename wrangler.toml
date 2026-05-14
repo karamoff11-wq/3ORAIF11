@@ -1,0 +1,12 @@
+name = "abu-al-areef-trivia"
+compatibility_date = "2024-12-01"
+pages_build_output_dir = ".vercel/output/static"
+
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://mbqonwwoazurvkxrffqx.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_anAvCT0-6AZlKuGb9Ryaig_BFtasoQ1"
+
+[secrets]
+# Add these as secrets in Cloudflare dashboard:
+# SUPABASE_SERVICE_ROLE_KEY
+# GEMINI_API_KEY

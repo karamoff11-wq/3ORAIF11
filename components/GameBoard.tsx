@@ -337,7 +337,11 @@ export default function GameBoard() {
             initial={{ opacity: 0, scale: 0.85, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.45 }}
-            className="text-4xl md:text-5xl font-black text-center leading-tight text-white"
+            className={`font-black text-center leading-tight text-white px-4 ${
+              (winner?.name?.length || 0) > 20 ? 'text-2xl md:text-3xl' :
+              (winner?.name?.length || 0) > 12 ? 'text-3xl md:text-4xl' :
+              'text-4xl md:text-5xl'
+            }`}
             style={{ textShadow: `0 0 40px ${winnerColor}80, 0 4px 20px rgba(0,0,0,0.5)` }}
           >
             {winner?.name}
@@ -692,7 +696,11 @@ export default function GameBoard() {
                 )}
 
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ background: team.color }} />
-                <span className="font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>{team.name}</span>
+                <span className={`font-bold truncate max-w-[120px] transition-all ${
+                  team.name.length > 15 ? 'text-[10px]' :
+                  team.name.length > 10 ? 'text-[11px]' :
+                  'text-sm'
+                }`} style={{ color: 'var(--color-text-primary)' }}>{team.name}</span>
                 <button
                   onClick={async () => {
                     const newScore = Math.max(0, team.score - scoringConfig.easy_points)

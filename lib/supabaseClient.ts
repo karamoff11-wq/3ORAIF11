@@ -1,16 +1,18 @@
-import { createBrowserClient } from '@supabase/ssr'
-import type { Database } from '@/types/database'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
-export function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  
-  if (!url || !key) {
-    console.error('Supabase credentials missing! Check .env.local', { url, hasKey: !!key })
+const getEnv = (key: string): string => {
+  if (typeof process !== 'undefined' && process.env[key]) {
+    return process.env[key]!
   }
+  if (typeof window !== 'undefined' && (window as any).ENV?.[key]) {
+    return (window as any).ENV[key]!
+  }
+  return ''
+}
 
-  return createBrowserClient<Database>(
-    url!,
-    key!
+export const createClient = () => {
+  return createSupabaseClient(
+    getEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
   )
 }
