@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from '@/lib/supabaseClient'
 import { GameMode, Difficulty } from '@/types/game'
-import * as Sentry from '@sentry/nextjs'
+// import * as Sentry from '@sentry/nextjs'
 import { track } from '@/lib/analytics'
 import { sanitizeTeams, sanitizeSessionName } from '@/lib/security/sanitize'
 
@@ -77,7 +77,8 @@ export const gameEngine = {
       
       return data // Returns { id, join_code, mode }
     } catch (err: any) {
-      Sentry.captureException(err, { tags: { engine: 'createSession' } });
+      // Sentry.captureException(err, { tags: { engine: 'createSession' } });
+      console.error('createSession error:', err);
       throw err
     }
   },
