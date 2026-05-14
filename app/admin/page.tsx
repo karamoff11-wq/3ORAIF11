@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 
 interface Stats {
   totalSessions: number
@@ -26,67 +27,74 @@ export default function AdminHomePage() {
   const supabase = useMemo(() => createClient(), [])
   const [stats, setStats] = useState<Stats | null>(null)
 
-  useEffect(() => {
-    async function load() {
-      // Fetch stats
-      const [sessions, questions, categories, recent] = await Promise.all([
-        (supabase.from('sessions') as any).select('id, state', { count: 'exact' }),
-        (supabase.from('questions') as any).select('id', { count: 'exact' }),
-        (supabase.from('categories') as any).select('id', { count: 'exact' }),
-        (supabase.from('sessions') as any).select('*, teams(name,score)').order('created_at', { ascending: false }).limit(8),
-      ])
+  const load = useCallback(async () => {
+    // Fetch stats
+    const [sessions, questions, categories, recent] = await Promise.all([
+      (supabase.from('sessions') as any).select('id, state', { count: 'exact' }),
+      (supabase.from('questions') as any).select('id', { count: 'exact' }),
+      (supabase.from('categories') as any).select('id', { count: 'exact' }),
+      (supabase.from('sessions') as any).select('*, teams(name,score)').order('created_at', { ascending: false }).limit(8),
+    ])
 
-      // Fetch popular categories (Join sessions and categories)
-      const { data: popularData } = await (supabase
-        .from('session_categories') as any)
-        .select('category_id, categories(name, topics(color))')
-      
-      const counts: Record<string, { name: string, count: number, color: string }> = {}
-      popularData?.forEach((item: any) => {
-        const cat = item.categories as any
-        if (!cat) return
-        if (!counts[cat.name]) {
-          counts[cat.name] = { name: cat.name, count: 0, color: cat.topics?.color || '#8b5cf6' }
-        }
-        counts[cat.name].count++
-      })
+    // Fetch popular categories
+    const { data: popularData } = await (supabase.from('session_categories') as any)
+      .select('category_id, categories(name, topics(color))')
 
-      const sortedPopular = Object.values(counts)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 4)
+    const counts: Record<string, { name: string, count: number, color: string }> = {}
+    popularData?.forEach((item: any) => {
+      const cat = item.categories as any
+      if (!cat) return
+      if (!counts[cat.name]) {
+        counts[cat.name] = { name: cat.name, count: 0, color: cat.topics?.color || '#8b5cf6' }
+      }
+      counts[cat.name].count++
+    })
+    const sortedPopular = Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 4)
 
-      // Playtime Distribution (Sessions per day for last 7 days)
-      const last7Days = Array(7).fill(0).map((_, i) => {
-        const d = new Date()
-        d.setDate(d.getDate() - i)
-        return d.toISOString().split('T')[0]
-      }).reverse()
+    // Sessions per day for last 7 days
+    const last7Days = Array(7).fill(0).map((_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - i)
+      return d.toISOString().split('T')[0]
+    }).reverse()
+    const { data: sessionHistory } = await (supabase.from('sessions') as any)
+      .select('created_at').gte('created_at', last7Days[0])
+    const distribution = last7Days.map(date =>
+      (sessionHistory as any[])?.filter((s: any) => s.created_at.startsWith(date)).length || 0
+    )
 
-      const { data: sessionHistory } = await (supabase
-        .from('sessions') as any)
-        .select('created_at')
-        .gte('created_at', last7Days[0])
-
-      const distribution = last7Days.map(date => {
-        return (sessionHistory as any[])?.filter((s: any) => s.created_at.startsWith(date)).length || 0
-      })
-
-      setStats({
-        totalSessions: sessions.count ?? 0,
-        activeSessions: ((sessions as any).data ?? []).filter((s: any) => s.state === 'playing').length,
-        totalQuestions: questions.count ?? 0,
-        totalCategories: categories.count ?? 0,
-        recentSessions: recent.data ?? [],
-        popularCategories: sortedPopular,
-        playtimeDistribution: distribution
-      })
-    }
-    load()
+    setStats({
+      totalSessions: sessions.count ?? 0,
+      activeSessions: ((sessions as any).data ?? []).filter((s: any) => s.state === 'playing').length,
+      totalQuestions: questions.count ?? 0,
+      totalCategories: categories.count ?? 0,
+      recentSessions: recent.data ?? [],
+      popularCategories: sortedPopular,
+      playtimeDistribution: distribution
+    })
   }, [supabase])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  // ── 2.1 Real-Time Live Updates ───────────────────────────────────────────────
+  useEffect(() => {
+    const channel = supabase.channel('admin-home-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => load())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase, load])
 
   const cards = stats ? [
     { label: 'إجمالي الجلسات',   value: stats.totalSessions,   icon: '🎮', color: 'var(--color-primary)' },
-    { label: 'جلسات نشطة',       value: stats.activeSessions,  icon: '⚡', color: '#10b981' },
+    {
+      label: 'جلسات نشطة',
+      value: stats.activeSessions,
+      icon: stats.activeSessions > 0 ? '⚡' : '⚡',
+      color: stats.activeSessions > 0 ? '#10b981' : 'var(--color-text-muted)',
+      live: stats.activeSessions > 0,
+    },
     { label: 'إجمالي الأسئلة',   value: stats.totalQuestions,  icon: '❓', color: 'var(--color-accent)' },
     { label: 'الفئات',            value: stats.totalCategories, icon: '📚', color: '#a855f7' },
   ] : []
@@ -104,16 +112,24 @@ export default function AdminHomePage() {
           Array(4).fill(0).map((_, i) => (
             <div key={i} className="card-glass h-32 animate-shimmer" />
           ))
-        ) : cards.map(({ label, value, icon, color }, i) => (
+        ) : (cards as any[]).map(({ label, value, icon, color, live }, i) => (
           <motion.div
             key={label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }}
-            className="card-glass flex flex-col gap-3"
+            className="card-glass flex flex-col gap-3 relative overflow-hidden"
+            style={{ borderColor: live ? 'rgba(16,185,129,0.3)' : 'var(--color-border)' }}
           >
+            {live && (
+              <div className="absolute top-0 left-0 right-0 h-[2px]"
+                style={{ background: 'linear-gradient(90deg, transparent, #10b981, transparent)' }} />
+            )}
             <div className="flex items-center justify-between">
-              <span className="text-2xl">{icon}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{icon}</span>
+                {live && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
+              </div>
               <span className="text-3xl font-black" style={{ color }}>{value}</span>
             </div>
             <p className="text-sm font-semibold" style={{ color: 'var(--color-text-secondary)' }}>{label}</p>
@@ -226,18 +242,49 @@ export default function AdminHomePage() {
 
       </div>
 
+      {/* ── 2.2 Quality Scoring Callout ── */}
+      <div className="mt-10 mb-6">
+        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>أدوات الإدارة</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Link href="/admin/questions">
+            <motion.div whileHover={{ scale: 1.02 }}
+              className="card-glass relative overflow-hidden group cursor-pointer border p-6 flex items-center gap-5"
+              style={{ borderColor: 'rgba(59,130,246,0.3)', background: 'linear-gradient(135deg, rgba(59,130,246,0.05), rgba(99,102,241,0.05))' }}>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+                style={{ background: 'rgba(59,130,246,0.15)' }}>📊</div>
+              <div>
+                <h3 className="font-bold text-base" style={{ color: 'var(--color-text-primary)' }}>مدير الأسئلة المتقدم</h3>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>تحديد مجموعي وحذف مجموعي واستيراد من CSV</p>
+              </div>
+              <div className="mr-auto text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">←</div>
+            </motion.div>
+          </Link>
+
+          <Link href="/admin/sessions">
+            <motion.div whileHover={{ scale: 1.02 }}
+              className="card-glass relative overflow-hidden group cursor-pointer border p-6 flex items-center gap-5"
+              style={{ borderColor: 'rgba(16,185,129,0.3)', background: 'linear-gradient(135deg, rgba(16,185,129,0.05), rgba(6,95,70,0.05))' }}>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+                style={{ background: 'rgba(16,185,129,0.15)' }}>⚡</div>
+              <div>
+                <h3 className="font-bold text-base" style={{ color: 'var(--color-text-primary)' }}>مراقب الجلسات الحية</h3>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>تحديث تلقائي • نقر لعرض تفاصيل كاملة</p>
+              </div>
+              <div className="mr-auto text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">←</div>
+            </motion.div>
+          </Link>
+        </div>
+      </div>
+
       {/* Theme Control Quick Access */}
-      <div className="mt-12 mb-8">
-        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>تجربة المستخدم والنمو</h2>
+      <div className="mb-8">
         <motion.div
           whileHover={{ scale: 1.005 }}
           className="card-glass relative overflow-hidden group cursor-pointer border"
           onClick={() => window.location.href = '/admin/themes'}
           style={{ borderColor: 'rgba(168,85,247,0.3)', background: 'linear-gradient(135deg, rgba(168,85,247,0.05), rgba(99,102,241,0.05))' }}
         >
-          {/* Decorative Background Glow */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 blur-[80px] -mr-32 -mt-32" />
-          
           <div className="flex flex-wrap items-center gap-6 relative z-10 p-6">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-purple-500/20 text-purple-400 group-hover:scale-110 transition-transform">
               🎨

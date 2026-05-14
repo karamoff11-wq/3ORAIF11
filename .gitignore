@@ -45,4 +45,12 @@ find_syntax.js
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# test reports
+/playwright-report/
+/test-results/
+/blob-report/
+
+# temporary and backup files
+.next_old_*/
+*.log
+*.tmp

@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from '@/lib/supabaseClient'
 import { GameMode, Difficulty } from '@/types/game'
+import * as Sentry from '@sentry/nextjs'
+import { track } from '@/lib/analytics'
+import { sanitizeTeams, sanitizeSessionName } from '@/lib/security/sanitize'
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -60,27 +63,23 @@ export const gameEngine = {
    */
   async createSession(hostId: string, mode: GameMode) {
     const supabase = createClient()
-
-    // Guarantee profile exists before the FK constraint on sessions.host_id fires
-    await ensureProfile(supabase, hostId)
-
-    const joinCode = mode === 'remote' ? await generateUniqueJoinCode(supabase) : null
-
-    const { data, error } = await (supabase
-      .from('sessions') as any)
-      .insert({
-        host_id: hostId,
-        mode,
-        state: 'lobby',
-        join_code: joinCode,
-        current_question_index: 0,
-        current_team_index: 0,
+    try {
+      const { data, error } = await (supabase.rpc as any)('create_session_atomic', {
+        params: {
+          p_host_id: hostId,
+          p_mode: mode
+        }
       })
-      .select()
-      .single()
 
-    if (error) throw new Error(error.message || 'Failed to create session')
-    return data
+      if (error) throw new Error(error.message || 'Failed to create session')
+      
+      track('session_created', { mode, host_id: hostId });
+      
+      return data // Returns { id, join_code, mode }
+    } catch (err: any) {
+      Sentry.captureException(err, { tags: { engine: 'createSession' } });
+      throw err
+    }
   },
 
   /**
@@ -92,18 +91,55 @@ export const gameEngine = {
     if (categoryIds.length > 6)  throw new Error('الحد الأقصى للفئات هو 6')
 
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    await (supabase.from('session_categories') as any)
-      .delete()
-      .eq('session_id', sessionId)
+    const { error } = await (supabase.rpc as any)('setup_game_session', {
+      p_host_id: user?.id,
+      p_mode: 'local', // Mode will be preserved if session exists
+      p_category_ids: categoryIds,
+      p_session_id: sessionId
+    })
 
-    const inserts = categoryIds.map(categoryId => ({
-      session_id: sessionId,
-      category_id: categoryId,
-    }))
-
-    const { error } = await (supabase.from('session_categories') as any).insert(inserts)
     if (error) throw new Error(error.message || 'خطأ في حفظ الفئات')
+  },
+
+  /**
+   * One-shot atomic launch: Sets up teams, categories, and questions in a single DB transaction.
+   */
+  async launchSessionAtomic(params: {
+    sessionId: string;
+    sessionName: string;
+    teams: Array<{ name: string; color: string }>;
+    categoryIds: string[];
+    punishMode: string | null;
+    punishments: any[];
+  }) {
+    // ── Sanitise all user-supplied strings before they touch the DB ──
+    const cleanName  = sanitizeSessionName(params.sessionName)
+    const cleanTeams = sanitizeTeams(params.teams)
+
+    const supabase = createClient()
+    const { error } = await (supabase.rpc as any)('launch_game_session_v2', {
+      params: {
+        p_session_id: params.sessionId,
+        p_session_name: cleanName,
+        p_teams: cleanTeams,
+        p_category_ids: params.categoryIds,
+        p_punish_mode: params.punishMode,
+        p_punishments: params.punishments
+      }
+    })
+
+    if (error) {
+      console.error('[GameEngine] Launch failed:', error)
+      throw new Error(error.message || 'فشل تشغيل الجلسة')
+    }
+
+    track('session_launched', {
+      session_id: params.sessionId,
+      teams_count: params.teams.length,
+      cats_count: params.categoryIds.length
+    })
   },
 
   /**
@@ -493,19 +529,21 @@ export const gameEngine = {
       }
     }
 
-    // 4. Update DB
-    const { error: deleteError } = await (supabase
-      .from('session_questions') as any)
-      .delete()
-      .eq('session_id', sessionId)
+    // 4. Update DB using Optimized RPC
+    const questionData = allSessionQuestions.map(q => ({
+      question_id: q.question_id,
+      team_id: q.team_id,
+      difficulty: q.difficulty,
+      category_id: q.category_id,
+      order_index: q.order_index
+    }))
 
-    if (deleteError) throw new Error(deleteError.message || 'فشل حذف الأسئلة القديمة')
+    const { error: rpcError } = await (supabase.rpc as any)('link_session_questions', {
+      p_session_id: sessionId,
+      p_question_data: questionData
+    })
 
-    const { error: insertError } = await (supabase
-      .from('session_questions') as any)
-      .insert(allSessionQuestions)
-
-    if (insertError) throw new Error(insertError.message || 'فشل إدراج أسئلة الجلسة')
+    if (rpcError) throw new Error(rpcError.message || 'فشل إدراج أسئلة الجلسة')
   },
 
   /**

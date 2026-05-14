@@ -36,6 +36,8 @@ export type AnalyticsEvent =
   | { event: 'forgot_password_opened'; props: Record<string, never> }
   | { event: 'signup_completed';       props: { method: 'email' | 'google' } }
   | { event: 'game_completed';         props: { session_id: string; winner_name: string; winner_score: number; team_count: number } }
+  | { event: 'ai_generation_completed'; props: { session_id: string; latency_ms: number; category_count: number; custom: boolean } }
+  | { event: 'session_launched';       props: { session_id: string; teams_count: number; cats_count: number } }
 
 // ── Track function ─────────────────────────────────────────────────
 export function track<T extends AnalyticsEvent['event']>(

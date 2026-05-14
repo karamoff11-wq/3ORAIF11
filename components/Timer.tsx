@@ -37,8 +37,21 @@ export default function Timer({ initialSeconds, isActive, onTimeUp, color = '#8B
       return
     }
 
-    const id = setInterval(() => setSeconds(p => p - 1), 1000)
-    return () => clearInterval(id)
+    // 4. WebWorker Offloading: Move timer to background thread
+    const worker = new Worker(new URL('./timer.worker.ts', import.meta.url))
+    
+    worker.onmessage = (e) => {
+      if (e.data.type === 'TICK') {
+        setSeconds(p => p > 0 ? p - 1 : 0)
+      }
+    }
+
+    worker.postMessage({ command: 'START' })
+
+    return () => {
+      worker.postMessage({ command: 'STOP' })
+      worker.terminate()
+    }
   }, [isActive, seconds, onTimeUp])
 
   return (

@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState, useMemo } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabaseClient'
 import { useGameStore } from '@/store/gameStore'
@@ -98,8 +98,11 @@ function CinematicLoader({ teams, lang }: { teams: { color: string; name: string
 export default function GamePage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
+  const searchParams = useSearchParams()
+  const isFast = searchParams.get('fast') === '1'
   
+  const supabase = useMemo(() => createClient(), [])
+
   const { lang, mounted } = useFeedbackStore()
   const t = useTranslator()
 
@@ -107,7 +110,7 @@ export default function GamePage() {
     setSession, setPhase, setTeams, setQuestions, setCurrentQuestion, setCurrentTeam,
     setCategories, setScoringConfig, setTimer, updateScore, markQuestionUsed, teams
   } = useGameStore()
-  
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showGame, setShowGame] = useState(false)
@@ -227,7 +230,7 @@ export default function GamePage() {
 
     useGameStore.getState().setBroadcastChannel(ch)
 
-    return () => { 
+    return () => {
       supabase.removeChannel(ch)
       useGameStore.getState().setBroadcastChannel(null)
     }
@@ -258,9 +261,13 @@ export default function GamePage() {
     <main className="min-h-screen relative overflow-hidden bg-[#07071A] text-white" style={{ fontFamily: 'var(--font-tajawal), var(--font-cairo), sans-serif' }}>
       <AnimatePresence mode="wait">
         {loading ? (
-          <motion.div key="loader" exit={{ opacity: 0 }} transition={{ duration: 0.5 }} className="absolute inset-0 z-50">
-            <CinematicLoader teams={teams} lang={lang} />
-          </motion.div>
+          isFast ? (
+            <motion.div key="loader-fast" exit={{ opacity: 0 }} className="absolute inset-0 z-50 bg-[#07071A]" />
+          ) : (
+            <motion.div key="loader" exit={{ opacity: 0 }} transition={{ duration: 0.5 }} className="absolute inset-0 z-50">
+              <CinematicLoader teams={teams} lang={lang} />
+            </motion.div>
+          )
         ) : showGame ? (
           <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className="relative z-10 w-full h-full min-h-screen">
             <FightingParticles teams={teams} />

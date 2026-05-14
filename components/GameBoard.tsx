@@ -159,15 +159,6 @@ export default function GameBoard() {
 
   // --- GAME EFFECTS & TRIGGERS (Moved to top level) ---
   useEffect(() => {
-    // 1. Intro Voice: Play only once per session using sessionStorage
-    if (settings && !introPlayedRef.current) {
-      const storageKey = `intro_played_${sessionId}`
-      if (!sessionStorage.getItem(storageKey)) {
-        triggerReaction('intro')
-        sessionStorage.setItem(storageKey, 'true')
-      }
-      introPlayedRef.current = true
-    }
 
     // 2. Idle Activity Tracker
     const handleActivity = () => { lastActivityRef.current = Date.now() }

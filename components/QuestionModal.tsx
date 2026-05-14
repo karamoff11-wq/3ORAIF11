@@ -27,9 +27,9 @@ interface Props {
 }
 
 const DIFF = {
-  easy:   { color: '#10b981', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.25)', label: 'سهل' },
-  medium: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)', label: 'متوسط' },
-  hard:   { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)',  label: 'صعب' },
+  easy: { color: '#10b981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)', label: 'سهل' },
+  medium: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)', label: 'متوسط' },
+  hard: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.25)', label: 'صعب' },
 }
 
 export default function QuestionModal({ sq, points, teams, onClose, triggerReaction }: Props) {
@@ -44,8 +44,13 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
   const [timerRunning, setTimerRunning] = useState(true)
   const [humorMessage, setHumorMessage] = useState('')
   const [humorType, setHumorType] = useState<'correct' | 'wrong'>('correct')
-  const [endGameColor, setEndGameColor] = useState<string | null>(null)
   const [answerPhrases, setAnswerPhrases] = useState<{ correct: string[]; wrong: string[] }>({ correct: [], wrong: [] })
+  const [mediaVisible, setMediaVisible] = useState(store.mediaRevealed)
+
+  // Sync with store for player views
+  useEffect(() => {
+    if (store.mediaRevealed) setMediaVisible(true)
+  }, [store.mediaRevealed])
 
   const q = sq.question
   const diff = DIFF[q.difficulty] ?? DIFF.easy
@@ -60,6 +65,12 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
 
   // Load answer phrases
   useEffect(() => {
+    supabase.channel('game_events')
+      .on('broadcast', { event: 'reveal_media' }, () => {
+        useGameStore.getState().setMediaRevealed(true)
+      })
+      .subscribe()
+
     supabase.from('answer_phrases')
       .select('category, text').eq('is_active', true)
       .then(({ data }) => {
@@ -89,7 +100,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
 
   const handleBuzz = useCallback(() => {
     if (store.isHost || !store.playerTeamId || store.buzzedTeamId) return
-    
+
     // Optimistic local update
     store.setBuzzedTeamId(store.playerTeamId)
     playTick()
@@ -116,9 +127,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
       const isHype = (store.streaks[team.id] || 0) + 1 === 9
       teams.forEach(t => { if (t.id !== team.id) store.updateStreak(t.id, true) })
 
-      if (Math.random() < 0.8) {
-        spokenText = (triggerReaction(isHype ? 'hype' : isActiveTeam ? 'correct' : 'wrong') as string) || ''
-      }
+      spokenText = (triggerReaction(isHype ? 'hype' : isActiveTeam ? 'correct' : 'wrong') as string) || ''
       if (!spokenText) {
         const pool = isActiveTeam ? answerPhrases.correct : answerPhrases.wrong
         spokenText = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : getRandomHumor(isActiveTeam ? 'correct' : 'wrong')
@@ -126,7 +135,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
       setHumorType(isActiveTeam ? 'correct' : 'wrong')
     } else {
       teams.forEach(t => store.updateStreak(t.id, true))
-      if (Math.random() < 0.7) spokenText = (triggerReaction('wrong') as string) || ''
+      spokenText = (triggerReaction('wrong') as string) || ''
       if (!spokenText) {
         const pool = answerPhrases.wrong
         spokenText = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : getRandomHumor('noOne')
@@ -154,19 +163,19 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
     // ── Analytics: track every question resolution ──
     track('question_answered', {
       session_id: liveStore.sessionId ?? '',
-      correct:    !!team && team.id === activeTeam?.id,
+      correct: !!team && team.id === activeTeam?.id,
       difficulty: q.difficulty ?? 'easy',
     })
 
     // ── SERVER-AUTHORITATIVE SCORING ──────────────────────────────────────
-    // The client does NOT send the points value.
-    // The server validates the request, looks up the scoring config from the DB,
-    // and atomically updates the score + turn. This prevents point manipulation.
+    // Optimistic local update to fix race conditions with Leaderboard showing old scores
     if (team) {
+      store.updateScore(team.id, (team.score || 0) + points)
+
       fetch('/api/game/submit-answer', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ sessionQuestionId: sq.id, teamId: team.id }),
+        body: JSON.stringify({ sessionQuestionId: sq.id, teamId: team.id }),
       })
         .then(res => res.json())
         .then(data => {
@@ -176,7 +185,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
           } else {
             console.warn('[submit-answer] Server rejected:', data.error)
             // Fallback: mark used locally at least
-            gameEngine.markQuestionUsed(sq.id).catch(() => {})
+            gameEngine.markQuestionUsed(sq.id).catch(() => { })
           }
         })
         .catch(() => {
@@ -184,9 +193,9 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
           console.warn('[submit-answer] Network error — falling back to legacy ops')
           gameEngine.updateTeamScore(team.id, points)
             .then(() => store.updateScore(team.id, (team.score || 0) + points))
-            .catch(() => {})
-          gameEngine.markQuestionUsed(sq.id).catch(() => {})
-          if (liveStore.sessionId) gameEngine.updateSessionTurn(liveStore.sessionId, nextTeam).catch(() => {})
+            .catch(() => { })
+          gameEngine.markQuestionUsed(sq.id).catch(() => { })
+          if (liveStore.sessionId) gameEngine.updateSessionTurn(liveStore.sessionId, nextTeam).catch(() => { })
         })
     } else {
       // No winner — still mark question used and advance turn
@@ -198,9 +207,8 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
     }
 
     if (isLastQuestion) {
-      const winner = [...liveStore.teams].sort((a, b) => b.score - a.score)[0]
-      setEndGameColor(winner?.color || '#fff')
-      setTimeout(() => onClose(), 900)
+      // Fluid transition: Let the players see the points added, then smoothly fade to leaderboard
+      setTimeout(() => onClose(), 2500)
     }
   }, [awarded, activeTeam, store, teams, triggerReaction, answerPhrases, points, sq.id, onClose])
 
@@ -237,18 +245,33 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
           : { type: 'spring', stiffness: 300, damping: 28 }
         }
         onClick={e => e.stopPropagation()}
-        className="relative w-full flex flex-col overflow-hidden"
+        className="relative w-full flex flex-col overflow-hidden shadow-2xl"
         style={{
-          maxWidth: 760,
-          maxHeight: '96vh',
-          background: 'rgba(8, 8, 16, 0.92)',
-          backdropFilter: 'blur(40px)',
-          borderRadius: 28,
-          border: `1.5px solid ${teamColor}40`,
-          borderLeft: `3px solid ${teamColor}`,
-          borderRight: `3px solid ${teamColor}`,
+          maxWidth: '94vw',
+          height: '92vh',
+          background: 'rgba(5, 5, 12, 0.96)',
+          backdropFilter: 'blur(60px)',
+          borderRadius: 40,
+          border: `1px solid rgba(255,255,255,0.08)`,
         }}
       >
+        {/* Cinematic Glowing Side Strips (LED Effect) */}
+        <motion.div
+          className="absolute inset-y-0 left-0 w-1.5 z-50"
+          animate={{ opacity: [0.3, 1, 0.3], background: [`${teamColor}30`, teamColor, `${teamColor}30`] }}
+          transition={{ duration: 3, repeat: Infinity }}
+          style={{ boxShadow: `0 0 20px ${teamColor}` }}
+        />
+        <motion.div
+          className="absolute inset-y-0 right-0 w-1.5 z-50"
+          animate={{ opacity: [0.3, 1, 0.3], background: [`${teamColor}30`, teamColor, `${teamColor}30`] }}
+          transition={{ duration: 3, repeat: Infinity }}
+          style={{ boxShadow: `0 0 20px ${teamColor}` }}
+        />
+
+        {/* Ambient Corner Glows */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-[120px] pointer-events-none opacity-20" style={{ background: teamColor }} />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full blur-[120px] pointer-events-none opacity-20" style={{ background: teamColor }} />
         {/* ── TOP BAR ── */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 shrink-0"
           style={{ borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
@@ -279,8 +302,8 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                 <button onClick={() => setTimerRunning(r => !r)}
                   className="w-7 h-7 rounded-full flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all">
                   {timerRunning
-                    ? <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
-                    : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    ? <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
+                    : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   }
                 </button>
                 <button onClick={() => setTimeLeft(p => p + (scoringConfig.time_adjustment_seconds || 5))}
@@ -321,19 +344,75 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
         {/* ── MAIN CONTENT ── */}
         <div className="flex-1 px-6 pb-6 flex flex-col gap-4">
 
-          {/* Question */}
-          <div className="text-center px-2">
-            <p className="text-2xl md:text-3xl font-bold leading-relaxed text-white">
+          {/* Question Section */}
+          <div className="text-center px-4 py-4 relative z-10 w-full flex items-center justify-center min-h-[120px]">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              className={`font-black text-white tracking-tight ${
+                q.question.length > 180 ? 'text-lg md:text-2xl leading-snug' :
+                q.question.length > 100 ? 'text-2xl md:text-4xl leading-snug' :
+                q.question.length > 50  ? 'text-3xl md:text-5xl leading-tight' :
+                'text-4xl md:text-6xl leading-[1.15]'
+              }`}
+              style={{ textShadow: '0 4px 20px rgba(0,0,0,0.5)', wordBreak: 'break-word' }}
+            >
               {q.question}
-            </p>
+            </motion.h2>
           </div>
 
-          {/* Image */}
-          {q.image_url && (
-            <div className="rounded-2xl overflow-hidden h-48 w-full relative flex items-center justify-center">
-              <Image src={q.image_url} alt="" fill className="object-contain" />
-            </div>
-          )}
+          {/* Image with Reveal Logic */}
+          <AnimatePresence>
+            {q.image_url && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative flex-1 min-h-[350px] w-full rounded-[2.5rem] overflow-hidden bg-black/40 border border-white/10 shadow-2xl group"
+              >
+                {/* Scanning Effect if Hidden */}
+                {!mediaVisible && (
+                  <div className="absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-3xl bg-black/60">
+                    <motion.div
+                      animate={{ y: [-100, 300] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                      className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-white/40 to-transparent shadow-[0_0_20px_white]"
+                    />
+                    <div className="relative z-10 flex flex-col items-center gap-4">
+                      <span className="text-5xl opacity-40">🖼️</span>
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Media Encrypted</p>
+                    </div>
+                  </div>
+                )}
+
+                <img
+                  src={q.image_url}
+                  alt=""
+                  className={`w-full h-full object-contain p-6 transition-all duration-1000 ${mediaVisible ? 'blur-0 scale-100 opacity-100' : 'blur-3xl scale-110 opacity-30'}`}
+                />
+
+                {/* Reveal Media Button (Host Only) */}
+                {store.isHost && !mediaVisible && (
+                  <button
+                    onClick={() => {
+                      setMediaVisible(true)
+                      store.setMediaRevealed(true)
+                      if (store.broadcastChannel) {
+                        store.broadcastChannel.send({
+                          type: 'broadcast',
+                          event: 'reveal_media',
+                          payload: {}
+                        })
+                      }
+                    }}
+                    className="absolute inset-0 z-40 flex items-center justify-center group/btn"
+                  >
+                    <div className="px-6 py-3 rounded-2xl bg-white text-black font-black text-sm uppercase tracking-widest shadow-2xl scale-90 group-hover/btn:scale-100 transition-all">
+                      Show Media
+                    </div>
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── PHASE: idle → reveal button or buzz UI ── */}
           <AnimatePresence mode="wait">
@@ -341,7 +420,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
               <motion.div key="idle-ui"
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                 className="flex justify-center mt-2 flex-col gap-4">
-                
+
                 {/* For Host */}
                 {store.isHost ? (
                   <>
@@ -371,7 +450,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                   /* For Players */
                   <div className="flex flex-col items-center">
                     {store.buzzedTeamId ? (
-                      <div className="text-center p-6 rounded-3xl w-full border-2" style={{ 
+                      <div className="text-center p-6 rounded-3xl w-full border-2" style={{
                         background: store.buzzedTeamId === store.playerTeamId ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                         borderColor: store.buzzedTeamId === store.playerTeamId ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
                       }}>
@@ -383,7 +462,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                         <div className="text-sm text-white/50 mt-2 font-bold">في انتظار المضيف...</div>
                       </div>
                     ) : (
-                      <motion.button 
+                      <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={handleBuzz}
@@ -503,7 +582,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                     </motion.button>
                   )
                 )}
-                
+
                 {/* Player waiting state after reveal */}
                 {!store.isHost && (
                   <div className="text-center py-6 text-white/40 font-bold border-t border-white/10 mt-2">
@@ -516,12 +595,6 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
         </div>
       </motion.div>
 
-      {/* End game mascot expansion */}
-      {endGameColor && (
-        <div className="fixed inset-0 z-[999] pointer-events-none flex justify-center pt-8">
-          <Mascot state="idle" size={90} color={endGameColor} expandBody />
-        </div>
-      )}
     </motion.div>
   )
 }

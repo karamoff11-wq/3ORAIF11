@@ -42,6 +42,7 @@ interface GameActions {
   setIsHost: (isHost: boolean) => void
   setPlayerTeamId: (id: string | null) => void
   setBuzzedTeamId: (id: string | null) => void
+  setMediaRevealed: (revealed: boolean) => void
   setBroadcastChannel: (ch: import('@supabase/supabase-js').RealtimeChannel | null) => void
 }
 
@@ -76,6 +77,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   isHost: false,
   playerTeamId: null,
   buzzedTeamId: null,
+  mediaRevealed: false,
   broadcastChannel: null,
 
   setSession: (sessionId, mode) => set({ sessionId, mode }),
@@ -123,5 +125,6 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   setIsHost: (isHost) => set({ isHost }),
   setPlayerTeamId: (playerTeamId) => set({ playerTeamId }),
   setBuzzedTeamId: (buzzedTeamId) => set({ buzzedTeamId }),
+  setMediaRevealed: (mediaRevealed) => set({ mediaRevealed }),
   setBroadcastChannel: (broadcastChannel) => set({ broadcastChannel })
 }))

@@ -36,6 +36,25 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'flagcdn.com' },
     ],
   },
+
+  // ── Edge Delivery & Strict Caching ────────────────────────────────────────
+  async headers() {
+    return [
+      {
+        // Apply aggressive caching to all static assets in /public
+        source: '/:path*.png',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        source: '/:path*.svg',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        source: '/themes/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      }
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
@@ -43,8 +62,5 @@ export default withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   silent: true,
   widenClientFileUpload: true,
-  disableLogger: true,
-  automaticVercelMonitors: true,
 });
-
 

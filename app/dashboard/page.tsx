@@ -14,6 +14,7 @@ import { useFeedbackStore } from '@/store/feedbackStore'
 import { useTranslator } from '@/lib/i18n'
 import { track, identifyUser, resetAnalytics } from '@/lib/analytics'
 import CreationsLibrary from '@/components/dashboard/CreationsLibrary'
+import AssetPreloader from '@/components/AssetPreloader'
 
 // ─────────────────────────────────────────────
 // UPGRADE SUCCESS OVERLAY
@@ -34,7 +35,7 @@ function UpgradeSuccessOverlay({ plan, onDismiss, accentColor }: {
     Array.from({ length: 72 }, (_, i) => ({
       id: i,
       x: (i * 137.508) % 100,
-      color: ['#8B5CF6','#EC4899','#3B82F6','#10B981','#F59E0B','#ffffff'][i % 6],
+      color: ['#8B5CF6', '#EC4899', '#3B82F6', '#10B981', '#F59E0B', '#ffffff'][i % 6],
       sz: (i % 4) * 3 + 6,
       del: (i % 10) * 0.05,
       spin: i % 2 === 0 ? 520 : -520,
@@ -125,130 +126,130 @@ type Lang = 'AR' | 'EN'
 const Icon = {
   Home: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-      <polyline points="9 22 9 12 15 12 15 22"/>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
     </svg>
   ),
   User: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   ),
   Users: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-      <circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
   Trophy: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z" />
     </svg>
   ),
   Calendar: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2"/>
-      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-      <line x1="3" y1="10" x2="21" y2="10"/>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
     </svg>
   ),
   Store: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-      <line x1="3" y1="6" x2="21" y2="6"/>
-      <path d="M16 10a4 4 0 0 1-8 0"/>
+      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
     </svg>
   ),
   Settings: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   ),
   LogOut: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-      <polyline points="16 17 21 12 16 7"/>
-      <line x1="21" y1="12" x2="9" y2="12"/>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   ),
   Search: () => (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <circle cx="11" cy="11" r="8"/>
-      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   ),
   ChevronLeft: () => (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <polyline points="15 18 9 12 15 6"/>
+      <polyline points="15 18 9 12 15 6" />
     </svg>
   ),
   ChevronRight: () => (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <polyline points="9 18 15 12 9 6"/>
+      <polyline points="9 18 15 12 9 6" />
     </svg>
   ),
   Gamepad: ({ size = 26 }: { size?: number }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/>
-      <line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/>
-      <rect x="2" y="6" width="20" height="12" rx="2"/>
+      <line x1="6" y1="12" x2="10" y2="12" /><line x1="8" y1="10" x2="8" y2="14" />
+      <line x1="15" y1="13" x2="15.01" y2="13" /><line x1="18" y1="11" x2="18.01" y2="11" />
+      <rect x="2" y="6" width="20" height="12" rx="2" />
     </svg>
   ),
   Globe: ({ size = 26 }: { size?: number }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="2" y1="12" x2="22" y2="12"/>
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   ),
   Clock: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 6 12 12 16 14"/>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </svg>
   ),
   Flame: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
     </svg>
   ),
   Coin: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 6v2m0 8v2M9 9h2a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9m6 0h-2a1 1 0 0 0-1-1v-1a1 1 0 0 0 1-1h2"/>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v2m0 8v2M9 9h2a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9m6 0h-2a1 1 0 0 0-1-1v-1a1 1 0 0 0 1-1h2" />
     </svg>
   ),
   Lock: () => (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <rect x="3" y="11" width="18" height="11" rx="2"/>
-      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </svg>
   ),
   Play: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="5 3 19 12 5 21 5 3"/>
+      <polygon points="5 3 19 12 5 21 5 3" />
     </svg>
   ),
   ArrowLeft: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="19" y1="12" x2="5" y2="12"/>
-      <polyline points="12 19 5 12 12 5"/>
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
     </svg>
   ),
   CreditCard: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-      <line x1="1" y1="10" x2="23" y2="10"/>
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+      <line x1="1" y1="10" x2="23" y2="10" />
     </svg>
   ),
   PlusCircle: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="12" y1="8" x2="12" y2="16"/>
-      <line x1="8" y1="12" x2="16" y2="12"/>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+      <line x1="8" y1="12" x2="16" y2="12" />
     </svg>
   ),
 }
@@ -263,11 +264,11 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
     <div className={`flex flex-col ${isRtl ? 'items-end text-right ml-auto w-fit' : 'items-start text-left w-full'} gap-3 mb-10 group/header`} dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="flex items-center gap-4">
         <div className={`flex flex-col ${isRtl ? 'items-end' : 'items-start'}`}>
-          <motion.h2 
+          <motion.h2
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-2xl font-black tracking-tighter" 
+            className="text-2xl font-black tracking-tighter"
             style={{ color: 'var(--text-primary)' }}
           >
             {title}
@@ -279,10 +280,10 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
           )}
         </div>
         {badge && (
-          <motion.span 
+          <motion.span
             initial={{ scale: 0 }}
             whileInView={{ scale: 1 }}
-            className="px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest text-white shadow-2xl" 
+            className="px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest text-white shadow-2xl"
             style={{ background: `linear-gradient(135deg, ${accentColor}, #6366F1)` }}
           >
             {badge}
@@ -293,24 +294,24 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
       {/* Elegant Aurora HUD Line */}
       <div className={`relative ${isRtl ? 'w-56' : 'w-full'} min-w-[140px] h-px overflow-hidden`}>
         {/* Base Subtle Track */}
-        <div 
-          className="absolute inset-0 opacity-20" 
-          style={{ background: `linear-gradient(${isRtl ? '270deg' : '90deg'}, ${accentColor} 0%, transparent 100%)` }} 
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{ background: `linear-gradient(${isRtl ? '270deg' : '90deg'}, ${accentColor} 0%, transparent 100%)` }}
         />
 
         {/* Smooth Flowing Pulse */}
-        <motion.div 
+        <motion.div
           className="absolute inset-y-0 w-64"
           animate={{ [isRtl ? 'right' : 'left']: ['-100%', '150%'] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          style={{ 
+          style={{
             background: `radial-gradient(circle at center, ${accentColor} 0%, transparent 75%)`,
             opacity: 0.6
           }}
         />
 
         {/* Leading Elegant Dot */}
-        <motion.div 
+        <motion.div
           className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full blur-[1px]"
           animate={{ [isRtl ? 'right' : 'left']: ['-5%', '105%'] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
@@ -326,9 +327,9 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
 // ─────────────────────────────────────────────
 function DashboardBackground({ accentColor, themeMode }: { accentColor: string; themeMode: string }) {
   const isLight = themeMode === 'light'
-  
+
   // Generate particles for a "living" background
-  const particles = useMemo(() => 
+  const particles = useMemo(() =>
     Array.from({ length: 22 }, (_, i) => ({
       id: i,
       size: Math.random() * 3 + 1,
@@ -340,7 +341,7 @@ function DashboardBackground({ accentColor, themeMode }: { accentColor: string; 
   )
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-0 pointer-events-none overflow-hidden transition-colors duration-1000"
       style={{ background: isLight ? '#F9FAFB' : '#020205' }}
     >
@@ -360,43 +361,43 @@ function DashboardBackground({ accentColor, themeMode }: { accentColor: string; 
 
       {/* 3. Deep Nebula Blobs */}
       <motion.div
-        animate={{ 
-          x: [0, 80, -40, 0], 
+        animate={{
+          x: [0, 80, -40, 0],
           y: [0, -60, 80, 0],
           scale: [1, 1.2, 0.9, 1],
         }}
         transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
         className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full"
-        style={{ 
-          background: `radial-gradient(circle, ${accentColor}${isLight ? '25' : '40'}, transparent 70%)`, 
+        style={{
+          background: `radial-gradient(circle, ${accentColor}${isLight ? '25' : '40'}, transparent 70%)`,
           filter: 'blur(100px)',
           opacity: isLight ? 0.8 : 0.7
         }}
       />
       <motion.div
-        animate={{ 
-          x: [0, -100, 60, 0], 
+        animate={{
+          x: [0, -100, 60, 0],
           y: [0, 80, -100, 0],
           scale: [1, 1.1, 1.2, 1],
         }}
         transition={{ duration: 35, repeat: Infinity, ease: 'linear' }}
         className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full"
-        style={{ 
-          background: `radial-gradient(circle, #6366F1${isLight ? '20' : '35'}, transparent 70%)`, 
+        style={{
+          background: `radial-gradient(circle, #6366F1${isLight ? '20' : '35'}, transparent 70%)`,
           filter: 'blur(100px)',
           opacity: isLight ? 0.7 : 0.6
         }}
       />
       <motion.div
-        animate={{ 
-          x: [0, 40, -80, 0], 
+        animate={{
+          x: [0, 40, -80, 0],
           y: [0, 100, -50, 0],
           scale: [0.8, 1.3, 0.9, 0.8],
         }}
         transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
         className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full"
-        style={{ 
-          background: `radial-gradient(circle, ${isLight ? '#F472B6' : '#EC4899'}25, transparent 70%)`, 
+        style={{
+          background: `radial-gradient(circle, ${isLight ? '#F472B6' : '#EC4899'}25, transparent 70%)`,
           filter: 'blur(120px)',
           opacity: 0.4
         }}
@@ -407,23 +408,23 @@ function DashboardBackground({ accentColor, themeMode }: { accentColor: string; 
         <motion.div
           key={p.id}
           initial={{ x: `${p.x}vw`, y: `${p.y}vh`, opacity: 0 }}
-          animate={{ 
+          animate={{
             y: [`${p.y}vh`, `${p.y - 15}vh`, `${p.y}vh`],
             opacity: [0, isLight ? 0.3 : 0.5, 0],
             scale: [1, 1.5, 1]
           }}
-          transition={{ 
-            duration: p.duration, 
-            repeat: Infinity, 
+          transition={{
+            duration: p.duration,
+            repeat: Infinity,
             delay: p.delay,
-            ease: "easeInOut" 
+            ease: "easeInOut"
           }}
           className="absolute rounded-full"
-          style={{ 
-            width: p.size, 
-            height: p.size, 
+          style={{
+            width: p.size,
+            height: p.size,
             background: i % 2 === 0 ? accentColor : (isLight ? '#6366F1' : '#34D399'),
-            boxShadow: isLight ? 'none' : `0 0 10px ${accentColor}60` 
+            boxShadow: isLight ? 'none' : `0 0 10px ${accentColor}60`
           }}
         />
       ))}
@@ -461,9 +462,8 @@ function SidebarItem({
       <motion.div
         whileHover={!locked ? { x: isRtl ? -4 : 4 } : {}}
         onClick={!locked ? onClick : undefined}
-        className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all relative group ${
-          active ? '' : locked ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:bg-white/[0.02]'
-        }`}
+        className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all relative group ${active ? '' : locked ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:bg-white/[0.02]'
+          }`}
         style={{
           background: active ? `${accentColor}12` : 'transparent',
           border: active ? `1px solid ${accentColor}20` : '1px solid transparent',
@@ -474,7 +474,7 @@ function SidebarItem({
           <motion.div
             layoutId="activeSide"
             className={`absolute ${isRtl ? 'right-0' : 'left-0'} top-1/2 -translate-y-1/2 w-1 h-8 rounded-full shadow-[0_0_20px_var(--accent-glow)]`}
-            style={{ 
+            style={{
               background: `linear-gradient(to bottom, ${accentColor}, #6366F1)`,
               boxShadow: `0 0 20px ${accentColor}80`
             }}
@@ -484,7 +484,7 @@ function SidebarItem({
           <IconComp />
         </span>
         {!collapsed && (
-          <motion.span 
+          <motion.span
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-sm font-black flex-1 whitespace-nowrap tracking-tight"
@@ -531,15 +531,14 @@ function ActionCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -12, scale: 1.01 }}
       onClick={!comingSoon ? onClick : undefined}
-      className={`relative p-10 md:p-14 rounded-[4rem] border overflow-hidden group flex-1 flex flex-col justify-between transition-all duration-700 glass-card min-h-[420px] ${
-        comingSoon ? 'cursor-not-allowed opacity-70 grayscale' : 'cursor-pointer shadow-2xl hover:shadow-[0_40px_100px_-20px_rgba(67,56,202,0.3)]'
-      } ${isRtl ? 'text-right' : 'text-left'}`}
+      className={`relative p-10 md:p-14 rounded-[4rem] border overflow-hidden group flex-1 flex flex-col justify-between transition-all duration-700 glass-card min-h-[420px] ${comingSoon ? 'cursor-not-allowed opacity-70 grayscale' : 'cursor-pointer shadow-2xl hover:shadow-[0_40px_100px_-20px_rgba(67,56,202,0.3)]'
+        } ${isRtl ? 'text-right' : 'text-left'}`}
       style={{ borderColor: 'var(--border-subtle)' }}
     >
       {/* Corner Aurora Light */}
-      <div 
-        className="absolute -top-32 -right-32 w-64 h-64 blur-[100px] opacity-0 group-hover:opacity-30 transition-all duration-1000" 
-        style={{ backgroundColor: accentFrom }} 
+      <div
+        className="absolute -top-32 -right-32 w-64 h-64 blur-[100px] opacity-0 group-hover:opacity-30 transition-all duration-1000"
+        style={{ backgroundColor: accentFrom }}
       />
 
       {/* Coming Soon Overlay */}
@@ -548,11 +547,11 @@ function ActionCard({
           <div className="absolute inset-0 backdrop-blur-[16px]" style={{ backgroundColor: 'var(--bg-overlay)' }} />
           <div className="relative z-20 flex flex-col items-center gap-6 text-center">
             <div className="w-20 h-20 rounded-full flex items-center justify-center border-2 border-indigo-500/20 bg-indigo-500/5 shadow-2xl"
-                 style={{ color: 'var(--text-tertiary)' }}>
+              style={{ color: 'var(--text-tertiary)' }}>
               <Icon.Lock />
             </div>
             <span className="px-8 py-2.5 rounded-full border-2 text-[11px] font-black uppercase tracking-[0.5em] text-white"
-                  style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-strong)' }}>
+              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-strong)' }}>
               {isRtl ? 'قريباً' : 'COMING SOON'}
             </span>
           </div>
@@ -560,7 +559,7 @@ function ActionCard({
       )}
 
       <div className={`flex flex-col ${isRtl ? 'md:flex-row' : 'md:flex-row-reverse'} items-center gap-12 relative z-10`}>
-        <div 
+        <div
           className="w-24 h-24 md:w-28 md:h-28 rounded-[3rem] flex items-center justify-center text-5xl md:text-6xl shadow-2xl transition-all duration-700 group-hover:scale-110 group-hover:rotate-12 shrink-0"
           style={{ background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`, color: 'white', boxShadow: `0 20px 50px ${accentGlow}` }}
         >
@@ -583,6 +582,7 @@ function ActionCard({
         <button
           onClick={!comingSoon ? onClick : undefined}
           disabled={loading || comingSoon}
+          data-testid="start-session-btn"
           className="px-12 py-4 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] text-white transition-all flex items-center gap-4 hover:scale-[1.05] active:scale-[0.95] disabled:opacity-50"
           style={{
             background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`,
@@ -594,7 +594,7 @@ function ActionCard({
           ) : (
             <span className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
               {isRtl ? 'ابدأ النمط' : 'START SESSION'}
-              <motion.span 
+              <motion.span
                 animate={{ x: isRtl ? [0, -6, 0] : [0, 6, 0] }}
                 transition={{ duration: 2, repeat: Infinity }}
                 style={{ transform: isRtl ? 'none' : 'scaleX(-1)', display: 'inline-block' }}
@@ -656,8 +656,8 @@ function RecentSessions({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
     >
-      <SmartHeader 
-        title={t('dash_recent_sessions')} 
+      <SmartHeader
+        title={t('dash_recent_sessions')}
         subtitle={t('dash_last_4')}
         accentColor={accentColor}
         isRtl={lang === 'AR'}
@@ -665,7 +665,7 @@ function RecentSessions({
 
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[1,2,3,4].map(i => (
+          {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-card)' }} />
           ))}
         </div>
@@ -772,7 +772,7 @@ function ThemeToggle() {
 // ─────────────────────────────────────────────
 function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: boolean; accentColor: string; profile: Profile | null; router: any }) {
   const t = useTranslator()
-  
+
   const achievements = [
     {
       id: 'first_game',
@@ -818,8 +818,8 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
 
   return (
     <div className="space-y-4">
-      <SmartHeader 
-        title={isRtl ? 'الإنجازات والأوسمة' : 'Achievements & Milestones'} 
+      <SmartHeader
+        title={isRtl ? 'الإنجازات والأوسمة' : 'Achievements & Milestones'}
         accentColor={accentColor}
         isRtl={isRtl}
       />
@@ -837,14 +837,14 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
               className="p-7 rounded-[2.5rem] glass-card relative overflow-hidden group/ach hover:y-[-5px] transition-all duration-500 border border-white/5"
             >
               {/* Achievement Corner Glow */}
-              <div 
-                className="absolute -top-16 -right-16 w-32 h-32 blur-[40px] opacity-0 group-hover/ach:opacity-20 transition-opacity duration-700 pointer-events-none" 
-                style={{ backgroundColor: accentColor }} 
+              <div
+                className="absolute -top-16 -right-16 w-32 h-32 blur-[40px] opacity-0 group-hover/ach:opacity-20 transition-opacity duration-700 pointer-events-none"
+                style={{ backgroundColor: accentColor }}
               />
 
               {/* Background Glow for Completed */}
               {isDone && (
-                <div 
+                <div
                   className="absolute inset-0 opacity-[0.03] pointer-events-none"
                   style={{ background: `radial-gradient(circle at 50% 120%, ${accentColor}, transparent 70%)` }}
                 />
@@ -856,7 +856,7 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
                     {ach.icon}
                   </div>
                   {isDone && (
-                    <div 
+                    <div
                       className="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-white shadow-xl"
                       style={{ background: `linear-gradient(135deg, #22c55e, #10B981)` }}
                     >
@@ -880,7 +880,7 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
                     <span>{ach.target}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                    <motion.div 
+                    <motion.div
                       initial={{ width: 0 }}
                       whileInView={{ width: `${ach.progress}%` }}
                       viewport={{ once: true }}
@@ -889,7 +889,7 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
                       style={{ background: isDone ? `linear-gradient(90deg, ${accentColor}, #6366F1)` : 'var(--text-tertiary)' }}
                     >
                       {isDone && (
-                        <motion.div 
+                        <motion.div
                           animate={{ x: ['-100%', '100%'] }}
                           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                           className="absolute inset-0 w-1/2 bg-white/20 skew-x-12"
@@ -946,6 +946,7 @@ function WelcomeOverlay({ username, onComplete, accentColor }: {
         </p>
         <motion.button
           onClick={onComplete}
+          data-testid="welcome-start-btn"
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
           className="w-full py-5 rounded-2xl font-black text-lg text-white"
           style={{ background: `linear-gradient(135deg, ${accentColor}, #EC4899)`, boxShadow: `0 12px 40px ${accentColor}35` }}
@@ -967,10 +968,10 @@ function MobileBottomNav({
 }) {
   const t = useTranslator()
   const items = [
-    { icon: 'Home' as const,     label: t('side_home'),     active: true  },
-    { icon: 'User' as const,     label: t('side_profile')              },
-    { icon: 'Trophy' as const,   label: t('side_achievements'), locked: true },
-    { icon: 'Settings' as const, label: t('side_settings')            },
+    { icon: 'Home' as const, label: t('side_home'), active: true },
+    { icon: 'User' as const, label: t('side_profile') },
+    { icon: 'Trophy' as const, label: t('side_achievements'), locked: true },
+    { icon: 'Settings' as const, label: t('side_settings') },
   ]
 
   return (
@@ -1021,37 +1022,37 @@ function MobileBottomNav({
 // MAIN PAGE
 // ─────────────────────────────────────────────
 export default function DashboardPage() {
-  const router        = useRouter()
-  const searchParams  = useSearchParams()
-  const supabase      = useMemo(() => createClient(), [])
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const supabase = useMemo(() => createClient(), [])
 
-  const [profile,        setProfile]        = useState<Profile | null>(null)
-  const [creating,       setCreating]       = useState<'local' | 'remote' | null>(null)
-  const [collapsed,      setCollapsed]      = useState(false)
-  const [showUpgrade,    setShowUpgrade]    = useState(false)
-  const [upgradedPlan,   setUpgradedPlan]   = useState('pro')
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [creating, setCreating] = useState<'local' | 'remote' | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const [showUpgrade, setShowUpgrade] = useState(false)
+  const [upgradedPlan, setUpgradedPlan] = useState('pro')
 
-  const { 
-    accentColor, 
-    lang, 
-    mounted, 
-    themeMode, 
-    userName, 
-    userAvatar, 
-    userAvatarColor, 
-    userAvatarType, 
-    setUserName 
+  const {
+    accentColor,
+    lang,
+    mounted,
+    themeMode,
+    userName,
+    userAvatar,
+    userAvatarColor,
+    userAvatarType,
+    setUserName
   } = useFeedbackStore()
-  const t      = useTranslator()
-  const isRtl  = lang === 'AR'
-  const dir    = isRtl ? 'rtl' : 'ltr'
+  const t = useTranslator()
+  const isRtl = lang === 'AR'
+  const dir = isRtl ? 'rtl' : 'ltr'
 
   // Theme, Lang, and Accent are now handled by AppWrapper globally.
 
   // ── Detect upgrade=success param from Paddle redirect ──
   useEffect(() => {
     const upgradeParam = searchParams.get('upgrade')
-    const planParam    = searchParams.get('plan') ?? 'pro'
+    const planParam = searchParams.get('plan') ?? 'pro'
     if (upgradeParam === 'success') {
       setUpgradedPlan(planParam)
       setShowUpgrade(true)
@@ -1109,34 +1110,35 @@ export default function DashboardPage() {
 
   if (!mounted) return null
 
-  const userId        = profile?.id ?? ''
-  const userEmail     = profile?.email ?? ''
-  const isAdmin       = isUserAdmin(userEmail)
-  
-  const finalName     = userName || profile?.display_name || profile?.email?.split('@')[0] || '...'
+  const userId = profile?.id ?? ''
+  const userEmail = profile?.email ?? ''
+  const isAdmin = isUserAdmin(userEmail)
+
+  const finalName = userName || profile?.display_name || profile?.email?.split('@')[0] || '...'
   const finalAvatarBg = userAvatarType === 'color' ? userAvatarColor : (profile as any)?.avatar_bg_color || accentColor
   const finalAvatarType = userAvatarType || (profile?.avatar_url ? 'image' : 'color')
-  const finalAvatarUrl  = userAvatar || profile?.avatar_url
+  const finalAvatarUrl = userAvatar || profile?.avatar_url
 
   const sidebarItems: { labelKey: Parameters<typeof t>[0]; iconKey: SidebarIconKey; active?: boolean; locked?: boolean; href?: string }[] = [
-    { labelKey: 'side_home',         iconKey: 'Home',     active: true, href: '/dashboard' },
-    { labelKey: 'side_profile',      iconKey: 'User',     href: '/dashboard/profile' },
-    { labelKey: 'side_billing',      iconKey: 'CreditCard', href: '/pricing' },
-    { labelKey: 'side_friends',      iconKey: 'Users',    locked: true  },
-    { labelKey: 'side_achievements', iconKey: 'Trophy',   href: '/dashboard/achievements' },
-    { labelKey: 'side_daily',        iconKey: 'Calendar', href: '/dashboard/daily' },
-    { labelKey: 'side_store',        iconKey: 'Store',    href: '/dashboard/store' },
-    { labelKey: 'side_settings',     iconKey: 'Settings', href: '/dashboard/settings' },
+    { labelKey: 'side_home', iconKey: 'Home', active: true, href: '/dashboard' },
+    { labelKey: 'side_profile', iconKey: 'User', href: '/dashboard/profile' },
+    { labelKey: 'side_billing', iconKey: 'CreditCard', href: '/pricing' },
+    { labelKey: 'side_friends', iconKey: 'Users', locked: true },
+    { labelKey: 'side_achievements', iconKey: 'Trophy', href: '/dashboard/achievements' },
+    { labelKey: 'side_daily', iconKey: 'Calendar', href: '/dashboard/daily' },
+    { labelKey: 'side_store', iconKey: 'Store', href: '/dashboard/store' },
+    { labelKey: 'side_settings', iconKey: 'Settings', href: '/dashboard/settings' },
   ]
 
   return (<>
+    <AssetPreloader />
     <div
       className="min-h-screen flex overflow-hidden transition-colors duration-700"
-      style={{ 
-        background: 'var(--bg-primary)', 
-        color: 'var(--text-primary)', 
-        direction: dir, 
-        fontFamily: 'var(--font-tajawal), var(--font-cairo), sans-serif' 
+      style={{
+        background: 'var(--bg-primary)',
+        color: 'var(--text-primary)',
+        direction: dir,
+        fontFamily: 'var(--font-tajawal), var(--font-cairo), sans-serif'
       }}
     >
       {/* Root CSS variables are handled by AppWrapper */}
@@ -1150,11 +1152,11 @@ export default function DashboardPage() {
         animate={{ width: collapsed ? 88 : 280 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="relative z-30 h-screen shrink-0 hidden lg:flex flex-col overflow-hidden transition-colors duration-700 border-l border-white/5"
-        style={{ 
-          background: 'var(--sidebar-bg)', 
+        style={{
+          background: 'var(--sidebar-bg)',
           [isRtl ? 'borderLeft' : 'borderRight']: '1px solid var(--border-subtle)',
           [isRtl ? 'borderRight' : 'borderLeft']: 'none',
-          backdropFilter: 'blur(40px)' 
+          backdropFilter: 'blur(40px)'
         }}
       >
         {/* Inner Glass Glow (always on the side touching the main content) */}
@@ -1164,16 +1166,16 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4 p-7 shrink-0 relative overflow-hidden group/logo">
           <div
             className="w-11 h-11 rounded-[1.2rem] flex items-center justify-center text-base font-black text-white shrink-0 overflow-hidden shadow-2xl transition-all duration-500 group-hover/logo:scale-110 group-hover/logo:rotate-6"
-            style={{ 
-              background: `linear-gradient(135deg, ${accentColor}, #EC4899)`, 
-              boxShadow: `0 8px 24px ${accentColor}40` 
+            style={{
+              background: `linear-gradient(135deg, ${accentColor}, #EC4899)`,
+              boxShadow: `0 8px 24px ${accentColor}40`
             }}
           >
             <div className="w-full h-full relative">
               {finalAvatarType === 'image' && finalAvatarUrl ? (
-                 <Image src={finalAvatarUrl} alt="Avatar" fill className="object-cover" />
+                <Image src={finalAvatarUrl} alt="Avatar" fill className="object-cover" />
               ) : (
-                 <div className="w-full h-full flex items-center justify-center">{finalName.charAt(0).toUpperCase()}</div>
+                <div className="w-full h-full flex items-center justify-center">{finalName.charAt(0).toUpperCase()}</div>
               )}
             </div>
           </div>
@@ -1263,7 +1265,7 @@ export default function DashboardPage() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
             className="relative overflow-hidden rounded-[3rem] p-px group mb-8"
-            style={{ 
+            style={{
               background: `linear-gradient(135deg, ${accentColor}40, transparent, var(--border-strong))`,
               boxShadow: '0 30px 80px -20px rgba(0,0,0,0.3)'
             }}
@@ -1273,22 +1275,22 @@ export default function DashboardPage() {
             <div className="absolute -bottom-20 -right-20 w-48 h-48 blur-[80px] opacity-20 pointer-events-none" style={{ backgroundColor: '#6366F1' }} />
 
             {/* HUD Scanning Layer */}
-            <motion.div 
+            <motion.div
               animate={{ x: isRtl ? ['120%', '-120%'] : ['-120%', '120%'] }}
               transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
               className="absolute inset-0 w-1/2 skew-x-12 pointer-events-none z-10"
               style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent)' }}
             />
 
-            <div className={`relative overflow-hidden rounded-[2.9rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-10 transition-all duration-700 ${isRtl ? 'md:flex-row-reverse' : 'md:flex-row'}`} 
-                 style={{ background: 'var(--bg-secondary)', backdropFilter: 'blur(60px)' }}>
-              
+            <div className={`relative overflow-hidden rounded-[2.9rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-10 transition-all duration-700 ${isRtl ? 'md:flex-row-reverse' : 'md:flex-row'}`}
+              style={{ background: 'var(--bg-secondary)', backdropFilter: 'blur(60px)' }}>
+
               {/* Complex Background HUD Pattern */}
               <div className={`absolute inset-0 pointer-events-none select-none opacity-20`} style={{ color: 'var(--text-tertiary)', opacity: 0.05 }}>
                 <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
                   <defs>
                     <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                      <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.1"/>
+                      <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.1" />
                     </pattern>
                   </defs>
                   <rect width="100" height="100" fill="url(#grid)" />
@@ -1300,17 +1302,17 @@ export default function DashboardPage() {
               <div className={`flex flex-col items-center md:items-${isRtl ? 'end' : 'start'} gap-6 relative z-20 shrink-0`}>
                 {/* Multi-Ring Avatar HUD */}
                 <div className="relative">
-                  <motion.div 
+                  <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                    className="absolute -inset-4 rounded-full border border-indigo-500/10 border-dashed" 
+                    className="absolute -inset-4 rounded-full border border-indigo-500/10 border-dashed"
                   />
-                  <motion.div 
+                  <motion.div
                     animate={{ rotate: -360 }}
                     transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-                    className="absolute -inset-8 rounded-full border border-indigo-500/5 border-dotted" 
+                    className="absolute -inset-8 rounded-full border border-indigo-500/5 border-dotted"
                   />
-                  
+
                   <div className="relative p-1.5 rounded-full border-2 border-indigo-500/10 shadow-[0_0_40px_rgba(99,102,241,0.1)]">
                     <div className="w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden shadow-2xl relative" style={{ backgroundColor: finalAvatarBg }}>
                       {finalAvatarType === 'image' && finalAvatarUrl ? (
@@ -1325,7 +1327,7 @@ export default function DashboardPage() {
                     </div>
                     {/* Floating Level Hub */}
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg text-white text-[9px] font-black tracking-widest shadow-2xl border border-white/10"
-                         style={{ backgroundColor: '#1E1B4B', boxShadow: `0 8px 20px rgba(0,0,0,0.5)` }}>
+                      style={{ backgroundColor: '#1E1B4B', boxShadow: `0 8px 20px rgba(0,0,0,0.5)` }}>
                       {isRtl ? 'المستوى ٢٤' : 'LVL 24'}
                     </div>
                   </div>
@@ -1336,7 +1338,7 @@ export default function DashboardPage() {
               {/* 2. Massive Greeting Hub */}
               <div className={`flex-1 flex flex-col items-center md:items-${isRtl ? 'end' : 'start'} text-center md:text-${isRtl ? 'right' : 'left'} space-y-4 relative z-20`}>
                 <div className="space-y-1">
-                  <motion.span 
+                  <motion.span
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
@@ -1352,14 +1354,14 @@ export default function DashboardPage() {
               </div>
 
               {/* 3. Liquid Credit Portfolio Portfolio */}
-              <motion.div 
+              <motion.div
                 whileHover={{ scale: 1.02, y: -4 }}
                 onClick={() => router.push('/pricing')}
                 className="relative group/credits cursor-pointer z-20 shrink-0"
               >
                 <div className="p-6 md:p-8 rounded-[2.5rem] border transition-all duration-700 relative overflow-hidden flex flex-col items-center md:items-start min-w-[240px]"
-                     style={{ background: 'var(--bg-card)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-card)' }}>
-                  
+                  style={{ background: 'var(--bg-card)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-card)' }}>
+
                   {/* Portfolio Glow Corner */}
                   <div className={`absolute top-0 ${isRtl ? 'left-0' : 'right-0'} p-4 text-indigo-500/20 group-hover/credits:text-indigo-500/40 transition-colors`}>
                     <Icon.PlusCircle />
@@ -1368,7 +1370,7 @@ export default function DashboardPage() {
                   <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400/40 mb-1">
                     {isRtl ? 'رصيد الجلسات' : 'SESSION CREDITS'}
                   </span>
-                  
+
                   <div className="flex items-baseline gap-2">
                     <span className="text-5xl font-black tracking-tighter" style={{ color: 'var(--text-primary)' }}>
                       {isAdmin ? '∞' : (profile?.session_credits ?? 0)}
@@ -1391,16 +1393,16 @@ export default function DashboardPage() {
 
           {/* Game Modes Section */}
           <div className="space-y-4">
-            <SmartHeader 
-              title={isRtl ? 'أنماط اللعب' : 'Game Modes'} 
+            <SmartHeader
+              title={isRtl ? 'أنماط اللعب' : 'Game Modes'}
               accentColor={accentColor}
               isRtl={isRtl}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-              <motion.div 
+              <motion.div
                 className="h-full flex"
-                initial={{ opacity: 0, y: 18 }} 
-                animate={{ opacity: 1, y: 0 }} 
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               >
                 <ActionCard
@@ -1416,10 +1418,10 @@ export default function DashboardPage() {
                   lang={lang}
                 />
               </motion.div>
-              <motion.div 
+              <motion.div
                 className="h-full flex"
-                initial={{ opacity: 0, y: 18 }} 
-                animate={{ opacity: 1, y: 0 }} 
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.16, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               >
                 <ActionCard
@@ -1441,8 +1443,8 @@ export default function DashboardPage() {
 
           {/* Daily Challenge Section (WIDE) */}
           <div className="space-y-4">
-            <SmartHeader 
-              title={isRtl ? 'تحدي اليوم' : 'Today\'s Challenge'} 
+            <SmartHeader
+              title={isRtl ? 'تحدي اليوم' : 'Today\'s Challenge'}
               accentColor={accentColor}
               isRtl={isRtl}
             />
@@ -1453,13 +1455,13 @@ export default function DashboardPage() {
               onClick={() => router.push('/dashboard/daily')}
               className={`relative p-8 md:p-10 rounded-[3rem] overflow-hidden group cursor-pointer border border-white/10 glass-card ${isRtl ? 'text-right' : 'text-left'}`}
             >
-              <div 
+              <div
                 className="absolute inset-0 opacity-20 transition-opacity group-hover:opacity-30"
                 style={{ background: `linear-gradient(90deg, ${accentColor}, #F59E0B)` }}
               />
               <div className={`relative z-10 flex flex-col ${isRtl ? 'md:flex-row' : 'md:flex-row-reverse'} items-center justify-between gap-8`}>
                 <div className={`flex-1 text-center ${isRtl ? 'md:text-right' : 'md:text-left'}`}>
-                  <div 
+                  <div
                     className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-6 mx-auto ${isRtl ? 'md:mr-0 md:ml-auto' : 'md:ml-0 md:mr-auto'}`}
                     style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#F59E0B' }}
                   >
@@ -1469,12 +1471,12 @@ export default function DashboardPage() {
                     {isRtl ? 'اختبر حدود ذكائك الآن' : 'Test Your Limits Now'}
                   </h3>
                   <p className="text-sm md:text-base opacity-60 font-medium max-w-xl">
-                    {isRtl 
-                      ? 'سؤال واحد فائق الصعوبة يومياً. هل تملك الشجاعة الكافية لمواجهة تحدي اليوم؟ مكافآت ضخمة بانتظارك.' 
+                    {isRtl
+                      ? 'سؤال واحد فائق الصعوبة يومياً. هل تملك الشجاعة الكافية لمواجهة تحدي اليوم؟ مكافآت ضخمة بانتظارك.'
                       : 'One extremely difficult question per day. Do you have the courage to face today\'s challenge? Massive rewards await.'}
                   </p>
                 </div>
-                
+
                 <div className="flex flex-col items-center gap-4">
                   <div className="px-8 py-4 rounded-2xl bg-white text-black font-black uppercase tracking-widest text-xs shadow-xl group-hover:scale-110 transition-transform">
                     {isRtl ? 'ابدأ الآن' : 'Start Now'}

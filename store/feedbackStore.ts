@@ -56,7 +56,7 @@ export const useFeedbackStore = create<FeedbackState>()(
         { id: '6', name: 'يوسف جمال', text: 'المؤثرات الصوتية والبصرية في اللعبة عالمية.', date: 'منذ ٥ ساعات', visible: true },
       ],
       videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-star-field-in-deep-space-34356-large.mp4',
-      logoUrl: '',
+      logoUrl: '/logo.png',
       accentColor: '#8B5CF6',
       themeMode: 'system',
       lang: 'AR',

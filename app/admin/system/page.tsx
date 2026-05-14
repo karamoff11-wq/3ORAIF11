@@ -17,11 +17,52 @@ export default function AdminSystemPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  // 4.2 Gemini Cost Tracker State
+  const [aiUsage, setAiUsage] = useState<{
+    totalInput: number;
+    totalOutput: number;
+    totalCalls: number;
+    fallbackCalls: number;
+    avgLatency: number;
+    costEstimateUSD: number;
+  } | null>(null)
+
   useEffect(() => {
-    getAppSettings('system', SYSTEM_DEFAULTS, supabase).then(s => {
+    async function load() {
+      // 1. Load System Settings
+      const s = await getAppSettings('system', SYSTEM_DEFAULTS, supabase)
       setSettings(s)
+
+      // 2. Load AI Usage for current month (4.2)
+      const startOfMonth = new Date()
+      startOfMonth.setDate(1)
+      startOfMonth.setHours(0, 0, 0, 0)
+
+      const { data: usageData } = await (supabase
+        .from('ai_usage_log') as any)
+        .select('input_tokens, output_tokens, latency_ms, used_fallback')
+        .gte('created_at', startOfMonth.toISOString())
+
+      if (usageData) {
+        const totalInput = usageData.reduce((sum: number, r: any) => sum + (r.input_tokens || 0), 0)
+        const totalOutput = usageData.reduce((sum: number, r: any) => sum + (r.output_tokens || 0), 0)
+        const totalCalls = usageData.length
+        const fallbackCalls = usageData.filter((r: any) => r.used_fallback).length
+        const avgLatency = totalCalls > 0 
+          ? Math.round(usageData.reduce((sum: number, r: any) => sum + (r.latency_ms || 0), 0) / totalCalls) 
+          : 0
+
+        // Gemini Flash 1.5 pricing (approx): 
+        // Input: $0.075 per 1M tokens
+        // Output: $0.30 per 1M tokens
+        const costEstimateUSD = (totalInput / 1_000_000 * 0.075) + (totalOutput / 1_000_000 * 0.30)
+
+        setAiUsage({ totalInput, totalOutput, totalCalls, fallbackCalls, avgLatency, costEstimateUSD })
+      }
+
       setLoading(false)
-    })
+    }
+    load()
   }, [])
 
   async function save() {
@@ -84,6 +125,47 @@ export default function AdminSystemPage() {
               </div>
             </motion.div>
           )}
+        </div>
+
+        {/* 4.2 Gemini Cost Tracker */}
+        <div className="card-glass p-6 space-y-6 border border-cyan-500/20 bg-gradient-to-br from-cyan-900/10 to-transparent">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div>
+              <h3 className="font-bold text-xl text-cyan-400">استهلاك الذكاء الاصطناعي (Gemini)</h3>
+              <p className="text-xs text-white/50 mt-1">إحصائيات الاستهلاك والتكلفة التقديرية للشهر الحالي</p>
+            </div>
+            <div className="text-4xl">🤖</div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-black/30 p-4 rounded-xl border border-white/5">
+              <p className="text-xs text-white/50 mb-1">التكلفة التقديرية</p>
+              <p className="text-xl font-bold text-green-400">${aiUsage?.costEstimateUSD.toFixed(4) ?? '0.00'}</p>
+            </div>
+            <div className="bg-black/30 p-4 rounded-xl border border-white/5">
+              <p className="text-xs text-white/50 mb-1">الطلبات (Calls)</p>
+              <p className="text-xl font-bold">{aiUsage?.totalCalls ?? 0}</p>
+            </div>
+            <div className="bg-black/30 p-4 rounded-xl border border-white/5">
+              <p className="text-xs text-white/50 mb-1">متوسط الاستجابة</p>
+              <p className="text-xl font-bold text-yellow-400">{aiUsage?.avgLatency ?? 0} ms</p>
+            </div>
+            <div className="bg-black/30 p-4 rounded-xl border border-white/5">
+              <p className="text-xs text-white/50 mb-1">اللجوء للاحتياطي (Fallback)</p>
+              <p className="text-xl font-bold text-red-400">{aiUsage?.fallbackCalls ?? 0}</p>
+            </div>
+          </div>
+          
+          <div className="flex gap-4 items-center bg-white/5 p-3 rounded-lg text-sm">
+            <div className="flex-1">
+              <span className="text-white/50 mr-2">Tokens إدخال:</span>
+              <span className="font-mono text-cyan-300">{aiUsage?.totalInput.toLocaleString() ?? 0}</span>
+            </div>
+            <div className="flex-1">
+              <span className="text-white/50 mr-2">Tokens إخراج:</span>
+              <span className="font-mono text-purple-300">{aiUsage?.totalOutput.toLocaleString() ?? 0}</span>
+            </div>
+          </div>
         </div>
 
         {/* Security Settings */}

@@ -214,7 +214,11 @@ class MascotAudioDirector {
 
       case 'mp3':
         await new Promise<void>((resolve) => {
-          const audio = new Audio(step.url)
+          let audio = (window as any)[`__audio_cache_${step.url}`]
+          if (!audio) {
+            audio = new Audio(step.url)
+            ;(window as any)[`__audio_cache_${step.url}`] = audio
+          }
           let resolved = false
           
           const cleanup = () => {
@@ -240,6 +244,7 @@ class MascotAudioDirector {
             }
           }, 100)
 
+          audio.currentTime = 0
           audio.play().catch(() => {
             clearInterval(interval)
             cleanup()
@@ -261,18 +266,26 @@ class MascotAudioDirector {
           if (step.pitch) utterance.pitch = step.pitch
           if (step.rate) utterance.rate = step.rate
 
-          // Dual Animation Sync (Layer 1: Visual)
-          useGameStore.getState().setIsTalking(true)
+          let fallbackTimeout: NodeJS.Timeout
+          
+          // Fix for Chrome TTS startup bug: only start fallback duration AFTER TTS actually starts
+          utterance.onstart = () => {
+            useGameStore.getState().setIsTalking(true)
+            const estDurationMs = (step.text.length * 100) + 1500 
+            fallbackTimeout = setTimeout(() => {
+              useGameStore.getState().setIsTalking(false)
+              resolve()
+            }, estDurationMs)
+          }
 
-          // Layer 2: Audio Cleanup Fallback
-          // Estimate duration: ~100ms per character as a rough safe upper bound
-          const estDurationMs = (step.text.length * 100) + 1000 
-          const fallbackTimeout = setTimeout(() => {
+          // If TTS completely hangs and doesn't even fire onstart within 3 seconds, abort it
+          const startupTimeout = setTimeout(() => {
             useGameStore.getState().setIsTalking(false)
             resolve()
-          }, estDurationMs)
+          }, 3000)
 
           utterance.onend = () => {
+            clearTimeout(startupTimeout)
             clearTimeout(fallbackTimeout)
             useGameStore.getState().setIsTalking(false)
             resolve()
@@ -282,6 +295,7 @@ class MascotAudioDirector {
             if (e.error !== 'interrupted' && e.error !== 'canceled') {
               console.warn('TTS error:', e)
             }
+            clearTimeout(startupTimeout)
             clearTimeout(fallbackTimeout)
             useGameStore.getState().setIsTalking(false)
             resolve()

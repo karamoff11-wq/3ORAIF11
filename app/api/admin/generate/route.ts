@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabaseServer'
 import { generateSession } from '@/lib/gemini'
+import { checkRateLimit, ADMIN_GENERATE_LIMIT } from '@/lib/security/rateLimit'
+import { logAdminAction } from '@/lib/security/auditLog'
 
 interface GenerateRequest {
   sessionId: string
@@ -25,6 +27,15 @@ export async function POST(req: Request) {
     const { data: profile } = await (supabase.from('profiles') as any).select('role').eq('id', user.id).single()
     const userRole = profile?.role
     if (userRole !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    // Rate limiting: admin AI generation is capped to prevent accidental spend
+    const rateResult = checkRateLimit(user.id, 'admin-generate', ADMIN_GENERATE_LIMIT)
+    if (!rateResult.success) {
+      return NextResponse.json(
+        { error: `Rate limit reached. Retry in ${rateResult.retryAfter}s.` },
+        { status: 429, headers: { 'Retry-After': String(rateResult.retryAfter) } }
+      )
+    }
 
     const { sessionId, teams, categories: categoryIds } = await req.json() as GenerateRequest
 
@@ -70,6 +81,14 @@ export async function POST(req: Request) {
       )
 
     if (upsertError) throw upsertError
+
+    // Audit log
+    await logAdminAction({
+      admin_id: user.id,
+      action: 'generate_questions_ai',
+      target_id: sessionId,
+      payload: { count: questions.length, categories: categoryIds },
+    })
 
     return NextResponse.json({ success: true, count: questions.length })
 

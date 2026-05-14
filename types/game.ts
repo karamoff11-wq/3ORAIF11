@@ -112,5 +112,6 @@ export interface GameState {
   isHost: boolean
   playerTeamId: string | null
   buzzedTeamId: string | null
+  mediaRevealed: boolean
   broadcastChannel: import('@supabase/supabase-js').RealtimeChannel | null
 }

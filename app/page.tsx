@@ -18,20 +18,20 @@ type ThemeMode = 'dark' | 'light' | 'system'
 // ─────────────────────────────────────────────
 // Quiz moved to lib/quiz.ts
 
-const ARABIC_FLAGS = ['sa','ae','kw','qa','bh','om','eg','jo','lb','ps','iq','ye','ly','dz','ma','tn','sd','sy','so','mr','dj','km']
+const ARABIC_FLAGS = ['sa', 'ae', 'kw', 'qa', 'bh', 'om', 'eg', 'jo', 'lb', 'ps', 'iq', 'ye', 'ly', 'dz', 'ma', 'tn', 'sd', 'sy', 'so', 'mr', 'dj', 'km']
 
 const SOCIALS = [
   { key: 'social_facebook' as const, icon: '🔵', href: '#' },
-  { key: 'social_youtube'  as const, icon: '🔴', href: '#' },
-  { key: 'social_instagram'as const, icon: '📸', href: '#' },
-  { key: 'social_twitter'  as const, icon: '🐦', href: '#' },
+  { key: 'social_youtube' as const, icon: '🔴', href: '#' },
+  { key: 'social_instagram' as const, icon: '📸', href: '#' },
+  { key: 'social_twitter' as const, icon: '🐦', href: '#' },
 ]
 
 const ORBITAL_DATA = [
-  { key: 'orb_knowledge'   as const, color: '#8B5CF6', icon: BrainIcon   },
-  { key: 'orb_challenge'   as const, color: '#EC4899', icon: TargetIcon  },
-  { key: 'orb_achievement' as const, color: '#F59E0B', icon: TrophyIcon  },
-  { key: 'orb_play'        as const, color: '#3B82F6', icon: PlayIcon    },
+  { key: 'orb_knowledge' as const, color: '#8B5CF6', icon: BrainIcon },
+  { key: 'orb_challenge' as const, color: '#EC4899', icon: TargetIcon },
+  { key: 'orb_achievement' as const, color: '#F59E0B', icon: TrophyIcon },
+  { key: 'orb_play' as const, color: '#3B82F6', icon: PlayIcon },
 ]
 
 // ─────────────────────────────────────────────
@@ -40,10 +40,10 @@ const ORBITAL_DATA = [
 function BrainIcon({ size = 20, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9.5 2a2.5 2.5 0 0 1 5 0v.5"/>
-      <path d="M14.5 2.5a4 4 0 0 1 4 4v1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2v1a4 4 0 0 1-4 4H9.5a4 4 0 0 1-4-4v-1a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2V7a4 4 0 0 1 4-4.5"/>
-      <line x1="12" y1="6" x2="12" y2="12"/>
-      <line x1="9" y1="9" x2="15" y2="9"/>
+      <path d="M9.5 2a2.5 2.5 0 0 1 5 0v.5" />
+      <path d="M14.5 2.5a4 4 0 0 1 4 4v1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2v1a4 4 0 0 1-4 4H9.5a4 4 0 0 1-4-4v-1a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2V7a4 4 0 0 1 4-4.5" />
+      <line x1="12" y1="6" x2="12" y2="12" />
+      <line x1="9" y1="9" x2="15" y2="9" />
     </svg>
   )
 }
@@ -51,13 +51,13 @@ function BrainIcon({ size = 20, color = 'currentColor' }: { size?: number; color
 function TargetIcon({ size = 20, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="12" cy="12" r="10"/>
-      <circle cx="12" cy="12" r="6"/>
-      <circle cx="12" cy="12" r="2"/>
-      <line x1="22" y1="12" x2="18" y2="12"/>
-      <line x1="6" y1="12" x2="2" y2="12"/>
-      <line x1="12" y1="6" x2="12" y2="2"/>
-      <line x1="12" y1="22" x2="12" y2="18"/>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+      <line x1="22" y1="12" x2="18" y2="12" />
+      <line x1="6" y1="12" x2="2" y2="12" />
+      <line x1="12" y1="6" x2="12" y2="2" />
+      <line x1="12" y1="22" x2="12" y2="18" />
     </svg>
   )
 }
@@ -65,12 +65,12 @@ function TargetIcon({ size = 20, color = 'currentColor' }: { size?: number; colo
 function TrophyIcon({ size = 20, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-      <path d="M4 22h16"/>
-      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
-      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
-      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+      <path d="M4 22h16" />
+      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
     </svg>
   )
 }
@@ -78,9 +78,9 @@ function TrophyIcon({ size = 20, color = 'currentColor' }: { size?: number; colo
 function PlayIcon({ size = 20, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="20" height="12" rx="2"/>
-      <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/>
-      <path d="M6 12h.01M18 12h.01"/>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
+      <path d="M6 12h.01M18 12h.01" />
     </svg>
   )
 }
@@ -110,9 +110,9 @@ function LivingPlanet() {
 
   // Elliptical orbit positions — each moon has unique orbit parameters
   const orbits = [
-    { rx: 170, ry: 90,  speed: 28, offset: 0   },  // Knowledge
-    { rx: 200, ry: 110, speed: 36, offset: 90  },  // Challenge
-    { rx: 155, ry: 85,  speed: 22, offset: 180 },  // Achievement
+    { rx: 170, ry: 90, speed: 28, offset: 0 },  // Knowledge
+    { rx: 200, ry: 110, speed: 36, offset: 90 },  // Challenge
+    { rx: 155, ry: 85, speed: 22, offset: 180 },  // Achievement
     { rx: 185, ry: 100, speed: 32, offset: 270 },  // Play
   ]
 
@@ -378,9 +378,9 @@ function VerticalRoadmap() {
 
         {roadmapNodes.map((node, i) => {
           const isRight = i % 2 === 0
-          const label = t(`roadmap_node${i+1}_label` as any) || node.label
-          const desc = t(`roadmap_node${i+1}_desc` as any) || node.desc
-          
+          const label = t(`roadmap_node${i + 1}_label` as any) || node.label
+          const desc = t(`roadmap_node${i + 1}_desc` as any) || node.desc
+
           return (
             <motion.div
               key={i}
@@ -467,7 +467,7 @@ function InteractiveQuiz() {
   if (!mounted) return null
   const q = QUIZ_QUESTIONS[index]
   const question = q[lang].question
-  const answers  = q[lang].answers
+  const answers = q[lang].answers
 
   const handleAnswer = (i: number) => {
     if (selected !== null) return
@@ -510,18 +510,18 @@ function InteractiveQuiz() {
                       style={{
                         background: selected === null ? 'var(--bg-input)' :
                           (isScanning && isSel) ? 'rgba(255,255,255,0.08)' :
-                          (!isScanning && isCorrectOpt) ? 'rgba(16,185,129,0.12)' :
-                          (!isScanning && isSel) ? 'rgba(239,68,68,0.12)' :
-                          'var(--bg-card)',
+                            (!isScanning && isCorrectOpt) ? 'rgba(16,185,129,0.12)' :
+                              (!isScanning && isSel) ? 'rgba(239,68,68,0.12)' :
+                                'var(--bg-card)',
                         borderColor: selected === null ? 'var(--border-card)' :
                           (isScanning && isSel) ? accentColor + '60' :
-                          (!isScanning && isCorrectOpt) ? '#10B98150' :
-                          (!isScanning && isSel) ? '#EF444450' :
-                          'var(--border-subtle)',
+                            (!isScanning && isCorrectOpt) ? '#10B98150' :
+                              (!isScanning && isSel) ? '#EF444450' :
+                                'var(--border-subtle)',
                         color: selected === null ? 'var(--text-primary)' :
                           (!isScanning && isCorrectOpt) ? '#10B981' :
-                          (!isScanning && isSel) ? '#EF4444' :
-                          'var(--text-tertiary)',
+                            (!isScanning && isSel) ? '#EF4444' :
+                              'var(--text-tertiary)',
                         opacity: !isScanning && selected !== null && !isSel && i !== q.correct ? 0.35 : 1,
                       }}
                     >
@@ -566,7 +566,7 @@ function InteractiveQuiz() {
             style={{ borderColor: accentColor + '40', background: 'var(--glass-card-bg)' }}
           >
             <div className="absolute inset-0 pointer-events-none opacity-20" style={{ background: `radial-gradient(circle at 50% -20%, ${accentColor}, transparent 70%)` }} />
-            
+
             <motion.div
               animate={{ y: [0, -8, 0], scale: [1, 1.05, 1] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
@@ -575,14 +575,14 @@ function InteractiveQuiz() {
             >
               ✨
             </motion.div>
-            
+
             <h3 className="text-2xl md:text-3xl font-black mb-3 text-center" style={{ color: 'var(--text-primary)' }}>
               {lang === 'AR' ? 'مستعد للتحدي الحقيقي؟' : 'Ready for the real challenge?'}
             </h3>
             <p className="text-sm text-center max-w-sm mb-8 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               {lang === 'AR' ? 'قم بإنشاء حسابك الآن وانضم إلى آلاف اللاعبين في تجربة العُريف السينمائية.' : 'Create your account now and join thousands of players in Al-Arif\'s cinematic experience.'}
             </p>
-            
+
             <Link
               href="/auth/register"
               className="px-8 py-3.5 rounded-2xl font-black text-white text-sm transition-all hover:scale-105 active:scale-95 shadow-xl flex items-center gap-2"
@@ -974,7 +974,7 @@ export default function HomePage() {
             <div className="mt-12 flex items-center gap-4">
               <div className="flex items-center gap-2 h-7 overflow-hidden">
                 <AnimatePresence mode="popLayout">
-                  {[0,1,2,3].map(offset => {
+                  {[0, 1, 2, 3].map(offset => {
                     const code = ARABIC_FLAGS[(flagIndex + offset) % ARABIC_FLAGS.length]
                     return (
                       <motion.div
@@ -1160,7 +1160,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="flex -space-x-1.5">
-                {[1,2,3,4].map(i => (
+                {[1, 2, 3, 4].map(i => (
                   <div key={i} className="w-6 h-6 rounded-full" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--bg-primary)' }} />
                 ))}
               </div>

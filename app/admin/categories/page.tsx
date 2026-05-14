@@ -89,11 +89,26 @@ export default function AdminCategoriesPage() {
       hide_icon: form.hide_icon,
       crop_config: cropConfig || null
     }
-    const { error } = editing
-      ? await (supabase.from('categories') as any).update(payload).eq('id', editing.id)
-      : await (supabase.from('categories') as any).insert(payload)
+    const isNew = !editing
+    const { data: insertedData, error } = editing
+      ? await (supabase.from('categories') as any).update(payload).eq('id', editing.id).select()
+      : await (supabase.from('categories') as any).insert(payload).select()
     if (error) { toast.error(error.message); setSaving(false); return }
     toast.success(editing ? 'تم التحديث' : 'تمت الإضافة')
+
+    // ── 3.4 Pre-warm new category ──
+    if (isNew && insertedData?.[0]?.id) {
+      const newId = insertedData[0].id
+      const newName = form.name.trim()
+      toast('🚀 جاري توليد أسئلة تمهيدية للفئة الجديدة...', { duration: 4000 })
+      // Fire-and-forget — don't block the UI
+      fetch('/api/admin/prewarm-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryId: newId, categoryName: newName }),
+      }).catch(err => console.warn('[prewarm] Failed to trigger:', err))
+    }
+
     setModal(false); setSaving(false); load()
   }
 
@@ -259,6 +274,11 @@ export default function AdminCategoriesPage() {
                 </button>
                 <button onClick={() => setModal(false)} className="btn btn-ghost">إلغاء</button>
               </div>
+              {!editing && (
+                <p className="text-[10px] text-center" style={{ color: 'var(--color-text-muted)' }}>
+                  🚀 سيتم توليد 15 سؤالاً تمهيدياً تلقائياً للفئة الجديدة
+                </p>
+              )}
             </motion.div>
           </motion.div>
         )}
