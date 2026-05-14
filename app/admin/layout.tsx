@@ -16,6 +16,7 @@ const NAV_MAIN = [
   { href: '/admin/analytics',  label: 'التحليلات',         icon: '📈' },
   { href: '/admin/mascot',     label: 'شخصية أبو العُريف', icon: '🧞' },
   { href: '/admin/scoring',    label: 'إعدادات النقاط',    icon: '⚙️' },
+  { href: '/admin/emails',     label: 'معاينة الرسائل',    icon: '📧' },
   { href: '/admin/system',     label: 'الإعدادات التقنية',  icon: '🛠️' },
 ]
 

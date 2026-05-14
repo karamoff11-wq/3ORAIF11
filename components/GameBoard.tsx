@@ -611,7 +611,13 @@ export default function GameBoard() {
                        ( <span className="text-6xl md:text-8xl">🎮</span> )}
                     </div>
                     <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-black/90 to-transparent z-10" />
-                    <h2 className="relative z-20 text-sm md:text-2xl font-black tracking-widest text-white/90 uppercase px-2 pb-3 md:pb-6 w-full text-center break-words leading-tight drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">{cat.name}</h2>
+                    <h2 className={`relative z-20 font-black tracking-widest text-white/90 uppercase px-2 pb-3 md:pb-6 w-full text-center break-words leading-tight drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] transition-all ${
+                      cat.name.length > 25 ? 'text-[10px] md:text-base' :
+                      cat.name.length > 15 ? 'text-xs md:text-xl' :
+                      'text-sm md:text-2xl'
+                    }`}>
+                      {cat.name}
+                    </h2>
                   </motion.div>
 
                   {/* Second Group Teams */}
