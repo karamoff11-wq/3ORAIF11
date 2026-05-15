@@ -9,7 +9,7 @@
     "lint": "eslint",
     "preview": "opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare deploy",
-    "build:cf": "opennextjs-cloudflare build && mv .open-next/worker.js .open-next/_worker.js"
+    "build:cf": "opennextjs-cloudflare build && mv .open-next/worker.js .open-next/_worker.js && ls -R .open-next"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
