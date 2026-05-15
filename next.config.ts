@@ -5,10 +5,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
 
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   experimental: {
     optimizePackageImports: [
       'framer-motion',
