@@ -3,5 +3,8 @@ compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".open-next"
 
+[build]
+command = "npm run build:cf"
+
 [vars]
 OPEN_NEXT_DEBUG = "true"
