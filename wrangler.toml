@@ -1,3 +1,4 @@
-name = "3oraif11"
-compatibility_date = "2025-04-01"
-pages_build_output_dir = ".vercel/output/static"
+name = "abu-al-areef"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".open-next"

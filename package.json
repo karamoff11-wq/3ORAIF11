@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "preview": "opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare deploy"
+    "deploy": "opennextjs-cloudflare deploy",
+    "build:cf": "opennextjs-cloudflare build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
