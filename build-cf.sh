@@ -1,24 +1,26 @@
 #!/bin/bash
 set -e
 
-echo "=== Environment Info ==="
-node -v
-npm -v
+echo "🚀 [1/3] Cleaning previous builds..."
+rm -rf .open-next
 
-echo "=== Running OpenNext Cloudflare Build ==="
-# Using npx directly to ensure we use the right version
-npx @opennextjs/cloudflare@1.19.10 build
+echo "📦 [2/3] Building with OpenNext..."
+npx @opennextjs/cloudflare@latest build
 
-echo "=== Creating _worker.js ==="
+echo "🔧 [3/3] Preparing Cloudflare Pages structure..."
 if [ -f ".open-next/worker.js" ]; then
+  # Move worker to its expected location for Cloudflare Pages
   cp .open-next/worker.js .open-next/_worker.js
-  echo "SUCCESS: _worker.js created in .open-next/"
+  echo "✅ _worker.js created."
 else
-  echo "ERROR: .open-next/worker.js not found!"
-  find .open-next -maxdepth 2
+  echo "❌ ERROR: worker.js not found in .open-next/"
   exit 1
 fi
 
-echo "=== Build Complete Structure ==="
-ls -F .open-next/
+# Ensure static assets are at the root level if they aren't already
+if [ -d ".open-next/assets" ]; then
+  echo "📂 Flattening assets..."
+  cp -r .open-next/assets/* .open-next/ 2>/dev/null || true
+fi
 
+echo "✨ Build complete! Ready for Cloudflare Pages."
