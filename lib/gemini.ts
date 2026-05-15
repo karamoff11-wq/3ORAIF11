@@ -1,7 +1,6 @@
 // lib/gemini.ts
 import { getSpecialRules } from './categoryRules'
 
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`
 
 const SYSTEM_PROMPT = `أنت نظام ذكاء اصطناعي متخصص حصرياً في توليد أسئلة مسابقات معلومات احترافية باللغة العربية الفصحى.
 
@@ -67,6 +66,11 @@ ${specialRules}
 }
 
 async function callGemini(prompt: string, retries = 3): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
+  
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await fetch(GEMINI_URL, {
