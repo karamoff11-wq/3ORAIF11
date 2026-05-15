@@ -1,4 +1,5 @@
 #!/bin/bash
+# Trigger fresh build with correct dependencies
 set -e
 
 echo "🚀 [1/3] Cleaning previous builds..."
