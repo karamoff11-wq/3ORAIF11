@@ -33,4 +33,14 @@ if [ -d ".next/static" ]; then
   mkdir -p .open-next/_next/static
   cp -a .next/static/. .open-next/_next/static/
 fi
+
+echo "🗺️ Generating _routes.json..."
+cat << EOF > .open-next/_routes.json
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": ["/_next/*", "/favicon.ico", "/images/*", "/assets/*", "/public/*"]
+}
+EOF
+
 echo "✨ Build complete! Ready for Cloudflare Pages."
