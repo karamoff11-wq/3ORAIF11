@@ -25,7 +25,7 @@ export default function AdminCategoriesPage() {
 
   async function load() {
     const [catsRes, topicsRes] = await Promise.all([
-      supabase.from('categories').select('*, topics(name, color), questions(count)').order('name'),
+      supabase.from('categories').select('*, topics(name, color), questions(count)').not('topic_id', 'is', null).order('name'),
       supabase.from('topics').select('id, name').order('order_index')
     ])
     

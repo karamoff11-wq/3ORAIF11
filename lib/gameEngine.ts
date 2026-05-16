@@ -179,7 +179,7 @@ export const gameEngine = {
 
       // 2. Create/Insert Custom Categories
       const studioCategories = customData.categories.map((cat: any) => ({
-        id: crypto.randomUUID(), // MUST be valid UUID for DB
+        id: `studio_${crypto.randomUUID()}`, // MUST be valid UUID/string for DB
         name: cat.name,
         icon: cat.image || cat.icon || '📷', // Use the uploaded photo!
         created_at: new Date().toISOString()

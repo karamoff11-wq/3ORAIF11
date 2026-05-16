@@ -34,8 +34,8 @@ export default function AdminQuestionsPage() {
 
   const load = useCallback(async () => {
     const [q, c] = await Promise.all([
-      (supabase.from('questions') as any).select('*, categories(name)').order('created_at', { ascending: false }),
-      (supabase.from('categories') as any).select('*').order('name'),
+      (supabase.from('questions') as any).select('*, categories!inner(name, topic_id)').not('categories.topic_id', 'is', null).order('created_at', { ascending: false }),
+      (supabase.from('categories') as any).select('*').not('topic_id', 'is', null).order('name'),
     ])
     setQuestions(q.data ?? [])
     setCategories(c.data ?? [])

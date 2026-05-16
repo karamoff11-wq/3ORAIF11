@@ -46,19 +46,46 @@ export default function AdminStudioSessionsPage() {
     }
   }
 
+  const [cleaning, setCleaning] = useState(false)
+
+  const cleanGlobalTables = async () => {
+    if (!confirm('هل أنت متأكد من تنظيف الجداول العامة من محتوى الاستوديو؟ سيتم حذف جميع الفئات والأسئلة المؤقتة الخاصة بالاستوديو من قاعدة البيانات الأساسية.')) return
+    setCleaning(true)
+    const tid = toast.loading('جاري تنظيف قاعدة البيانات...')
+    try {
+      const { error } = await supabase.from('categories').delete().is('topic_id', null)
+      if (error) throw error
+      toast.success('تم تنظيف قاعدة البيانات بنجاح من محتوى الاستوديو المؤقت!', { id: tid })
+      fetchSessions()
+    } catch (err: any) {
+      toast.error('فشل التنظيف: ' + err.message, { id: tid })
+    } finally {
+      setCleaning(false)
+    }
+  }
+
   return (
     <div className="p-8 space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black gradient-text-primary">جلسات الاستوديو (الخاصة)</h1>
           <p style={{ color: 'var(--color-text-secondary)' }}>إدارة الجلسات التي قام اللاعبون بإنشائها عبر الاستوديو</p>
         </div>
-        <Link href="/admin">
-          <button className="px-6 py-2 rounded-xl bg-white/5 border font-bold hover:bg-white/10 transition-all" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}>
-            الرجوع للوحة القيادة
+        <div className="flex gap-3 flex-wrap">
+          <button 
+            onClick={cleanGlobalTables} 
+            disabled={cleaning}
+            className="px-6 py-2 rounded-xl bg-red-500/10 border border-red-500/20 font-bold text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50"
+          >
+            {cleaning ? 'جاري التنظيف...' : '🧹 تنظيف الجداول العامة من محتوى الاستوديو'}
           </button>
-        </Link>
+          <Link href="/admin">
+            <button className="px-6 py-2 rounded-xl bg-white/5 border font-bold hover:bg-white/10 transition-all" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}>
+              الرجوع للوحة القيادة
+            </button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

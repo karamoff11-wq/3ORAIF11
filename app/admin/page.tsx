@@ -31,8 +31,8 @@ export default function AdminHomePage() {
     // Fetch stats
     const [sessions, questions, categories, recent] = await Promise.all([
       (supabase.from('sessions') as any).select('id, state', { count: 'exact' }),
-      (supabase.from('questions') as any).select('id', { count: 'exact' }),
-      (supabase.from('categories') as any).select('id', { count: 'exact' }),
+      (supabase.from('questions') as any).select('id, categories!inner(topic_id)', { count: 'exact' }).not('categories.topic_id', 'is', null),
+      (supabase.from('categories') as any).select('id', { count: 'exact' }).not('topic_id', 'is', null),
       (supabase.from('sessions') as any).select('*, teams(name,score)').order('created_at', { ascending: false }).limit(8),
     ])
 
