@@ -39,8 +39,8 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
     if (!creationId) return
     const load = async () => {
       try {
-        const { getSavedCreations } = await import('@/lib/indexedDB')
-        const all = await getSavedCreations()
+        const { getAllCreations } = await import('@/lib/indexedDB')
+        const all = await getAllCreations()
         const found = all.find(c => c.id === creationId)
         if (found) setCreation(found)
         else {
