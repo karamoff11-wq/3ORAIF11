@@ -1490,6 +1490,71 @@ export default function DashboardPage() {
             </motion.div>
           </div>
 
+          {/* Studio Section (WIDE) */}
+          <div className="space-y-4">
+            <SmartHeader
+              title={isRtl ? 'استوديو الإبداع' : 'Creator Studio'}
+              subtitle={isRtl ? 'صمم جلساتك الخاصة' : 'Design Custom Sessions'}
+              accentColor="#D4AF37"
+              isRtl={isRtl}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -5, scale: 1.01 }}
+              onClick={() => router.push('/dashboard/studio')}
+              className={`relative p-8 md:p-12 rounded-[3rem] overflow-hidden group cursor-pointer border border-[#D4AF37]/20 glass-card transition-all duration-700 shadow-2xl hover:shadow-[0_40px_100px_-20px_rgba(212,175,55,0.3)] ${isRtl ? 'text-right' : 'text-left'}`}
+            >
+              {/* Animated Aurora Background */}
+              <div
+                className="absolute inset-0 opacity-10 transition-opacity duration-1000 group-hover:opacity-30 pointer-events-none"
+                style={{ background: `linear-gradient(135deg, #D4AF37, #A17B00, transparent)` }}
+              />
+              <motion.div
+                animate={{
+                  x: [0, 40, -40, 0],
+                  y: [0, -40, 40, 0],
+                }}
+                transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+                className="absolute top-[-50%] right-[-10%] w-[80%] h-[150%] rounded-full opacity-20 pointer-events-none blur-[100px]"
+                style={{ background: `radial-gradient(circle, #D4AF37, transparent 70%)` }}
+              />
+
+              <div className={`relative z-10 flex flex-col ${isRtl ? 'md:flex-row' : 'md:flex-row-reverse'} items-center justify-between gap-10`}>
+                <div className={`flex-1 ${isRtl ? 'md:text-right' : 'md:text-left'} text-center`}>
+                  <div className="flex items-center gap-4 mb-6 justify-center md:justify-start" style={{ flexDirection: isRtl ? 'row' : 'row-reverse' }}>
+                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/20">
+                       {isRtl ? 'جديد ومحسن' : 'NEW & IMPROVED'}
+                     </div>
+                     <div
+                       className="w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-4xl shadow-2xl"
+                       style={{ background: 'linear-gradient(135deg, #D4AF37, #A17B00)', color: 'white', boxShadow: '0 10px 30px rgba(212,175,55,0.4)' }}
+                     >
+                       🎭
+                     </div>
+                  </div>
+                  
+                  <h3 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter leading-tight" style={{ color: 'var(--text-primary)' }}>
+                    {isRtl ? 'اصنع ذكريات لا تُنسى' : 'Create Unforgettable Memories'}
+                  </h3>
+                  <p className="text-base md:text-lg opacity-60 font-medium max-w-2xl leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    {isRtl
+                      ? 'صمم جلسات أسئلة خاصة للأصدقاء، العائلة، وحفلات أعياد الميلاد. أضف صورك الخاصة واستخدم "الإكمال الذكي" لكتابة أسئلة شخصية مليئة بالمرح والذكريات.'
+                      : 'Design custom trivia sessions for friends, family, and birthday parties. Add your own photos and use "Smart Fill" to write highly personal, fun, and nostalgic questions.'}
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center gap-4 shrink-0">
+                  <div className="px-10 py-5 rounded-[2rem] font-black uppercase tracking-widest text-sm text-black transition-all group-hover:scale-105 flex items-center gap-3 shadow-2xl shadow-[#D4AF37]/30"
+                       style={{ background: 'linear-gradient(135deg, #D4AF37, #FDE047)' }}>
+                    {isRtl ? 'ادخل الاستوديو' : 'ENTER STUDIO'}
+                    <span className="text-xl">✨</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
           {/* Custom Creations Library */}
           <CreationsLibrary isRtl={isRtl} lang={lang} />
 

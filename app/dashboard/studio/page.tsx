@@ -45,14 +45,22 @@ type Category = {
   questions: Question[]
 }
 
-// ── Smart Suggestions Dictionary ──
-const SMART_CAT_NAMES = ['ألغاز التاريخ', 'عجائب العلوم', 'أبطال الرياضة', 'سحر السينما', 'خفايا الفضاء', 'أساطير قديمة', 'عباقرة الفن', 'تكنولوجيا المستقبل']
+// ── Smart Suggestions Dictionary (Personal/Custom) ──
+const SMART_CAT_NAMES = [
+  'فضائح المراهقة', 'أسرار العمل', 'ذكريات السفر', 'مواقف محرجة', 
+  'أسرار العائلة', 'قصة حبنا', 'صاحب عيد الميلاد', 'أيام الجامعة', 'أقوال مأثورة للشلة'
+]
 const SMART_QUESTIONS = [
-  { q: 'ما هو العنصر الأكثر وفرة في الكون؟', a: 'الهيدروجين' },
-  { q: 'في أي عام انتهت الحرب العالمية الثانية؟', a: '1945' },
-  { q: 'من هو مخرج فيلم Interstellar؟', a: 'كريستوفر نولان' },
-  { q: 'ما هي عاصمة الإمبراطورية البيزنطية؟', a: 'القسطنطينية' },
-  { q: 'ما هو أسرع حيوان بري؟', a: 'الفهد' }
+  'متى كانت أول مرة التقينا فيها؟',
+  'ما هي أكثر أكلة مستحيل أن يأكلها؟',
+  'ما هو الموقف الذي جعلنا نضحك حتى بكينا؟',
+  'من كان أول حب له في أيام المدرسة؟',
+  'لو كان شخصية في فيلم، من سيكون؟',
+  'ما هي أسوأ هدية أعطاها لأحد؟',
+  'أكثر كلمة أو جملة يكررها دائمًا هي...',
+  'أين كانت أسوأ رحلة سافرناها معًا ولماذا؟',
+  'ما هو السر الذي يخفيه عن عائلته حتى اليوم؟',
+  'لو أعطيناه مليون دولار، ما هو أول شيء غبي سيشتريه؟'
 ]
 
 export default function StudioPage() {
@@ -107,10 +115,10 @@ export default function StudioPage() {
   }
 
   const suggestQuestion = (catIdx: number, qIdx: number) => {
-    const random = SMART_QUESTIONS[Math.floor(Math.random() * SMART_QUESTIONS.length)]
+    const randomQ = SMART_QUESTIONS[Math.floor(Math.random() * SMART_QUESTIONS.length)]
     const newCats = [...categories]
-    newCats[catIdx].questions[qIdx].text = random.q
-    newCats[catIdx].questions[qIdx].answer = random.a
+    newCats[catIdx].questions[qIdx].text = randomQ
+    newCats[catIdx].questions[qIdx].answer = '' // Clear answer because it is personal
     setCategories(newCats)
   }
 
