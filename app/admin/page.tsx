@@ -245,7 +245,7 @@ export default function AdminHomePage() {
       {/* ── 2.2 Quality Scoring Callout ── */}
       <div className="mt-10 mb-6">
         <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>أدوات الإدارة</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link href="/admin/questions">
             <motion.div whileHover={{ scale: 1.02 }}
               className="card-glass relative overflow-hidden group cursor-pointer border p-6 flex items-center gap-5"
@@ -271,6 +271,20 @@ export default function AdminHomePage() {
                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>تحديث تلقائي • نقر لعرض تفاصيل كاملة</p>
               </div>
               <div className="mr-auto text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">←</div>
+            </motion.div>
+          </Link>
+
+          <Link href="/admin/studio">
+            <motion.div whileHover={{ scale: 1.02 }}
+              className="card-glass relative overflow-hidden group cursor-pointer border p-6 flex items-center gap-5"
+              style={{ borderColor: 'rgba(212,175,55,0.3)', background: 'linear-gradient(135deg, rgba(212,175,55,0.05), rgba(161,123,0,0.05))' }}>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+                style={{ background: 'rgba(212,175,55,0.15)' }}>🎭</div>
+              <div>
+                <h3 className="font-bold text-base" style={{ color: 'var(--color-text-primary)' }}>مكتبة استوديو اللاعبين</h3>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>إدارة الجلسات الخاصة التي صممها المستخدمون</p>
+              </div>
+              <div className="mr-auto text-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity">←</div>
             </motion.div>
           </Link>
         </div>

@@ -41,8 +41,19 @@ type Question = {
 type Category = {
   name: string
   icon: string
+  image?: string | null
   questions: Question[]
 }
+
+// ── Smart Suggestions Dictionary ──
+const SMART_CAT_NAMES = ['ألغاز التاريخ', 'عجائب العلوم', 'أبطال الرياضة', 'سحر السينما', 'خفايا الفضاء', 'أساطير قديمة', 'عباقرة الفن', 'تكنولوجيا المستقبل']
+const SMART_QUESTIONS = [
+  { q: 'ما هو العنصر الأكثر وفرة في الكون؟', a: 'الهيدروجين' },
+  { q: 'في أي عام انتهت الحرب العالمية الثانية؟', a: '1945' },
+  { q: 'من هو مخرج فيلم Interstellar؟', a: 'كريستوفر نولان' },
+  { q: 'ما هي عاصمة الإمبراطورية البيزنطية؟', a: 'القسطنطينية' },
+  { q: 'ما هو أسرع حيوان بري؟', a: 'الفهد' }
+]
 
 export default function StudioPage() {
   const router = useRouter()
@@ -87,6 +98,19 @@ export default function StudioPage() {
   const updateQuestion = (catIdx: number, qIdx: number, field: keyof Question, value: any) => {
     const newCats = [...categories]
     newCats[catIdx].questions[qIdx] = { ...newCats[catIdx].questions[qIdx], [field]: value }
+    setCategories(newCats)
+  }
+
+  const suggestCategoryName = (catIdx: number) => {
+    const random = SMART_CAT_NAMES[Math.floor(Math.random() * SMART_CAT_NAMES.length)]
+    const n = [...categories]; n[catIdx].name = random; setCategories(n)
+  }
+
+  const suggestQuestion = (catIdx: number, qIdx: number) => {
+    const random = SMART_QUESTIONS[Math.floor(Math.random() * SMART_QUESTIONS.length)]
+    const newCats = [...categories]
+    newCats[catIdx].questions[qIdx].text = random.q
+    newCats[catIdx].questions[qIdx].answer = random.a
     setCategories(newCats)
   }
 
@@ -214,9 +238,14 @@ export default function StudioPage() {
                <div className="p-8 rounded-[2.5rem] border space-y-8" style={{ background: glass, borderColor: 'var(--border-subtle)' }}>
                   <div className="flex flex-col md:flex-row gap-6">
                     <div className="flex-1 space-y-3">
-                       <label className="text-[10px] font-black uppercase tracking-widest opacity-40" style={{ color: 'var(--text-primary)' }}>
-                        {isRtl ? 'اسم الفئة' : 'Category Name'}
-                       </label>
+                       <div className="flex justify-between items-center">
+                         <label className="text-[10px] font-black uppercase tracking-widest opacity-40" style={{ color: 'var(--text-primary)' }}>
+                          {isRtl ? 'اسم الفئة' : 'Category Name'}
+                         </label>
+                         <button onClick={() => suggestCategoryName(activeCatIndex)} className="text-[10px] font-bold text-[#D4AF37] hover:scale-105 flex items-center gap-1 transition-transform">
+                           <Icon.Sparkles size={12} /> {isRtl ? 'اقتراح ذكي' : 'Smart Suggest'}
+                         </button>
+                       </div>
                        <input 
                         value={categories[activeCatIndex].name}
                         onChange={(e) => {
@@ -265,6 +294,43 @@ export default function StudioPage() {
                          {showEmojiPicker && <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />}
                        </div>
                     </div>
+
+                    {/* Category Photo Upload */}
+                    <div className="w-full md:w-32 space-y-3">
+                       <label className="text-[10px] font-black uppercase tracking-widest opacity-40" style={{ color: 'var(--text-primary)' }}>
+                        {isRtl ? 'صورة الفئة' : 'Photo'}
+                       </label>
+                       <div 
+                         className="relative w-full h-[62px] rounded-2xl bg-white/5 border flex items-center justify-center cursor-pointer hover:bg-white/10 transition-all overflow-hidden" 
+                         style={{ borderColor: 'var(--border-subtle)' }}
+                         onClick={() => {
+                           const el = document.getElementById(`cat-upload-${activeCatIndex}`) as HTMLInputElement
+                           if (el) el.click()
+                         }}
+                       >
+                         <input 
+                           id={`cat-upload-${activeCatIndex}`}
+                           type="file" 
+                           className="hidden" 
+                           accept="image/*"
+                           onChange={(e) => {
+                             const file = e.target.files?.[0]
+                             if (file) {
+                               const reader = new FileReader()
+                               reader.onloadend = () => {
+                                 const n = [...categories]; n[activeCatIndex].image = reader.result as string; setCategories(n)
+                               }
+                               reader.readAsDataURL(file)
+                             }
+                           }}
+                         />
+                         {categories[activeCatIndex].image ? (
+                           <img src={categories[activeCatIndex].image!} className="w-full h-full object-cover" />
+                         ) : (
+                           <Icon.Image size={20} className="opacity-40" style={{ color: 'var(--text-primary)' }} />
+                         )}
+                       </div>
+                    </div>
                   </div>
 
                   <div className="space-y-6">
@@ -278,6 +344,9 @@ export default function StudioPage() {
                             <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase ${q.difficulty === 'easy' ? 'bg-green-500/10 text-green-500' : q.difficulty === 'medium' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>
                               {q.difficulty}
                             </span>
+                            <button onClick={() => suggestQuestion(activeCatIndex, qIdx)} className="text-[10px] font-bold text-[#D4AF37] hover:scale-105 flex items-center gap-1 transition-transform">
+                              <Icon.Sparkles size={12} /> {isRtl ? 'إكمال ذكي' : 'Auto-Fill'}
+                            </button>
                           </div>
                           <textarea 
                             value={q.text}
@@ -387,22 +456,37 @@ export default function StudioPage() {
                   <button 
                     onClick={async () => { 
                       setSaving(true)
+                      const newId = `studio_${Date.now()}`
                       const newCreation = {
-                        id: `studio_${Date.now()}`,
+                        id: newId,
                         name: sessionName,
                         categories,
                         createdAt: new Date().toISOString()
                       }
                       
+                      // Save to local IndexedDB (for player offline/local access)
                       const { saveCreation } = await import('@/lib/indexedDB')
                       await saveCreation(newCreation)
+                      
+                      // Also sync to Supabase for Admin Studio Section
+                      try {
+                        const { data: { session } } = await supabase.auth.getSession()
+                        await supabase.from('studio_sessions').insert({
+                          id: newId,
+                          name: sessionName,
+                          content: categories,
+                          creator_id: session?.user?.id || null
+                        })
+                      } catch (err) {
+                        console.error('Failed to sync studio session to cloud:', err)
+                      }
                       
                       setTimeout(() => {
                         setSaving(false)
                         setStep(1)
                         setSessionName('')
                         setCategories([])
-                        toast.success(isRtl ? 'تم حفظ الجلسة في مكتبتك!' : 'Session saved to your library!')
+                        toast.success(isRtl ? 'تم حفظ الجلسة بنجاح!' : 'Session saved successfully!')
                       }, 1500)
                     }}
                     className="flex-1 py-5 rounded-2xl font-black text-sm uppercase bg-[#D4AF37] text-black hover:scale-[1.02] transition-all shadow-2xl shadow-[#D4AF37]/40"
