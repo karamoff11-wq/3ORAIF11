@@ -18,10 +18,19 @@ else
   exit 1
 fi
 
-# Ensure static assets are at the root level if they aren't already
+# Manually ensure static assets are copied (fallback for OpenNext)
+echo "📂 Flattening assets..."
 if [ -d ".open-next/assets" ]; then
-  echo "📂 Flattening assets..."
   cp -a .open-next/assets/. .open-next/
 fi
 
+# Bulletproof fallback: explicitly copy from Next.js output
+if [ -d "public" ]; then
+  cp -a public/. .open-next/
+fi
+
+if [ -d ".next/static" ]; then
+  mkdir -p .open-next/_next/static
+  cp -a .next/static/. .open-next/_next/static/
+fi
 echo "✨ Build complete! Ready for Cloudflare Pages."
