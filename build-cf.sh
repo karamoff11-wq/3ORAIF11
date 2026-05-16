@@ -21,7 +21,7 @@ fi
 # Ensure static assets are at the root level if they aren't already
 if [ -d ".open-next/assets" ]; then
   echo "📂 Flattening assets..."
-  cp -r .open-next/assets/* .open-next/ 2>/dev/null || true
+  cp -a .open-next/assets/. .open-next/
 fi
 
 echo "✨ Build complete! Ready for Cloudflare Pages."
