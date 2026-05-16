@@ -1494,7 +1494,6 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <SmartHeader
               title={isRtl ? 'استوديو الإبداع' : 'Creator Studio'}
-              subtitle={isRtl ? 'صمم جلساتك الخاصة' : 'Design Custom Sessions'}
               accentColor="#D4AF37"
               isRtl={isRtl}
             />
@@ -1523,9 +1522,6 @@ export default function DashboardPage() {
               <div className={`relative z-10 flex flex-col ${isRtl ? 'md:flex-row' : 'md:flex-row-reverse'} items-center justify-between gap-10`}>
                 <div className={`flex-1 ${isRtl ? 'md:text-right' : 'md:text-left'} text-center`}>
                   <div className="flex items-center gap-4 mb-6 justify-center md:justify-start" style={{ flexDirection: isRtl ? 'row' : 'row-reverse' }}>
-                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/20">
-                       {isRtl ? 'جديد ومحسن' : 'NEW & IMPROVED'}
-                     </div>
                      <div
                        className="w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-4xl shadow-2xl"
                        style={{ background: 'linear-gradient(135deg, #D4AF37, #A17B00)', color: 'white', boxShadow: '0 10px 30px rgba(212,175,55,0.4)' }}
@@ -1535,12 +1531,12 @@ export default function DashboardPage() {
                   </div>
                   
                   <h3 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter leading-tight" style={{ color: 'var(--text-primary)' }}>
-                    {isRtl ? 'اصنع ذكريات لا تُنسى' : 'Create Unforgettable Memories'}
+                    {isRtl ? 'حكاياتك، قوانينك، مسرحك الخاص!' : 'Your Stories, Your Rules, Your Stage!'}
                   </h3>
                   <p className="text-base md:text-lg opacity-60 font-medium max-w-2xl leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                     {isRtl
-                      ? 'صمم جلسات أسئلة خاصة للأصدقاء، العائلة، وحفلات أعياد الميلاد. أضف صورك الخاصة واستخدم "الإكمال الذكي" لكتابة أسئلة شخصية مليئة بالمرح والذكريات.'
-                      : 'Design custom trivia sessions for friends, family, and birthday parties. Add your own photos and use "Smart Fill" to write highly personal, fun, and nostalgic questions.'}
+                      ? 'لأن أفضل الأسئلة هي التي نعيشها.. حوّل ذكريات الشلة ومواقف العائلة إلى تحديات ملحمية. ارفع صوركم الخاصة، واكتب أسئلة يعرف إجابتها فقط من كان هناك. اجعل كل جلسة قصة لا تُنسى.'
+                      : 'Because the best trivia is the one you lived! Turn inside jokes and family moments into epic challenges. Upload your own photos and create questions only your crew can answer. Make every session an unforgettable story.'}
                   </p>
                 </div>
 

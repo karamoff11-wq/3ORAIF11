@@ -72,10 +72,15 @@ export default function StudioPage() {
   const [step, setStep] = useState(1)
   const [mounted, setMounted] = useState(false)
   const [sessionName, setSessionName] = useState('')
-  const [categories, setCategories] = useState<Category[]>([])
+  const [categories, setCategories] = useState<Category[]>([
+    { name: '', image: null, questions: [
+        { text: '', answer: '', difficulty: 'easy', image: null },
+        { text: '', answer: '', difficulty: 'medium', image: null },
+        { text: '', answer: '', difficulty: 'hard', image: null },
+    ]}
+  ])
   const [activeCatIndex, setActiveCatIndex] = useState(0)
   const [saving, setSaving] = useState(false)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [savedCreations, setSavedCreations] = useState<any[]>([])
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -88,10 +93,13 @@ export default function StudioPage() {
   if (!mounted) return null
 
   const addCategory = () => {
-    if (categories.length >= 6) return
+    if (categories.length >= 6) {
+      toast.error(isRtl ? 'الحد الأقصى هو 6 فئات' : 'Max 6 categories allowed')
+      return
+    }
     setCategories([...categories, { 
       name: '', 
-      icon: '❓', 
+      image: null,
       questions: Array(6).fill(null).map((_, i) => ({
         text: '',
         answer: '',
@@ -99,7 +107,6 @@ export default function StudioPage() {
         image: null
       }))
     }])
-    setStep(3)
     setActiveCatIndex(categories.length)
   }
 
@@ -118,7 +125,7 @@ export default function StudioPage() {
     const randomQ = SMART_QUESTIONS[Math.floor(Math.random() * SMART_QUESTIONS.length)]
     const newCats = [...categories]
     newCats[catIdx].questions[qIdx].text = randomQ
-    newCats[catIdx].questions[qIdx].answer = '' // Clear answer because it is personal
+    newCats[catIdx].questions[qIdx].answer = ''
     setCategories(newCats)
   }
 
@@ -152,7 +159,6 @@ export default function StudioPage() {
 
       <AnimatePresence mode="wait">
         
-        {/* Step 1: License & Intro */}
         {step === 1 && (
           <motion.div 
             key="step1" initial={{ opacity: 0, x: isRtl ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
@@ -179,7 +185,6 @@ export default function StudioPage() {
           </motion.div>
         )}
 
-        {/* Step 2: Session Name */}
         {step === 2 && (
           <motion.div 
             key="step2" initial={{ opacity: 0, x: isRtl ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
@@ -199,7 +204,7 @@ export default function StudioPage() {
             </div>
             <button 
               disabled={!sessionName}
-              onClick={addCategory}
+              onClick={() => setStep(3)}
               className="px-12 py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest bg-white text-black hover:scale-105 active:scale-95 transition-all disabled:opacity-20"
             >
               {isRtl ? 'تأكيد الاسم وبدء الفئات' : 'Confirm Name & Start Categories'}
@@ -207,13 +212,11 @@ export default function StudioPage() {
           </motion.div>
         )}
 
-        {/* Step 3: Categories & Questions Forge */}
         {step === 3 && (
           <motion.div 
             key="step3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="grid grid-cols-1 lg:grid-cols-4 gap-8"
           >
-            {/* Sidebar: Categories List */}
             <div className="lg:col-span-1 space-y-4">
                {categories.map((cat, idx) => (
                  <button 
@@ -226,7 +229,13 @@ export default function StudioPage() {
                    }}
                  >
                    <span className="font-black">{cat.name || (isRtl ? `فئة ${idx + 1}` : `Category ${idx + 1}`)}</span>
-                   <span className="text-xl">{cat.icon}</span>
+                   {cat.image ? (
+                     <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/20 shrink-0">
+                       <img src={cat.image} className="w-full h-full object-cover" alt="" />
+                     </div>
+                   ) : (
+                     <span className="text-xl">📷</span>
+                   )}
                  </button>
                ))}
                {categories.length < 6 && (
@@ -241,7 +250,6 @@ export default function StudioPage() {
                )}
             </div>
 
-            {/* Main: Category Editor */}
             <div className="lg:col-span-3 space-y-8">
                <div className="p-8 rounded-[2.5rem] border space-y-8" style={{ background: glass, borderColor: 'var(--border-subtle)' }}>
                   <div className="flex flex-col md:flex-row gap-6">
@@ -264,44 +272,7 @@ export default function StudioPage() {
                         placeholder={isRtl ? 'مثلاً: ذكريات قديمة...' : 'e.g., Old Memories...'}
                        />
                     </div>
-                    <div className="w-full md:w-32 space-y-3">
-                       <label className="text-[10px] font-black uppercase tracking-widest opacity-40" style={{ color: 'var(--text-primary)' }}>
-                        {isRtl ? 'أيقونة' : 'Icon'}
-                       </label>
-                       <div className="relative">
-                         <input 
-                          value={categories[activeCatIndex].icon}
-                          onChange={(e) => {
-                            const n = [...categories]; n[activeCatIndex].icon = e.target.value; setCategories(n)
-                          }}
-                          onFocus={() => setShowEmojiPicker(true)}
-                          className="w-full bg-white/5 border rounded-2xl px-6 py-4 text-center text-xl focus:outline-none focus:border-[#D4AF37]/50 transition-all"
-                          style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
-                         />
-                         <AnimatePresence>
-                           {showEmojiPicker && (
-                             <motion.div 
-                               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                               className="absolute top-full mt-4 p-4 rounded-2xl glass-card border border-white/10 z-50 grid grid-cols-6 gap-2 w-64"
-                               style={{ background: 'rgba(20,20,20,0.95)', backdropFilter: 'blur(20px)' }}
-                             >
-                               {['🎨', '🎬', '🎭', '🎤', '🎸', '🕹️', '🍔', '🍕', '⚽', '🏀', '🌍', '🚀', '🧠', '💡', '🧪', '🧬', '🏺', '📜'].map(emoji => (
-                                 <button 
-                                   key={emoji}
-                                   onClick={() => {
-                                     const n = [...categories]; n[activeCatIndex].icon = emoji; setCategories(n); setShowEmojiPicker(false)
-                                   }}
-                                   className="text-xl p-2 hover:bg-white/10 rounded-lg transition-all"
-                                 >
-                                   {emoji}
-                                 </button>
-                               ))}
-                             </motion.div>
-                           )}
-                         </AnimatePresence>
-                         {showEmojiPicker && <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />}
-                       </div>
-                    </div>
+
 
                     {/* Category Photo Upload */}
                     <div className="w-full md:w-32 space-y-3">

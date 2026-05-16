@@ -9,7 +9,7 @@ import { gameEngine } from '@/lib/gameEngine'
 
 interface Category {
   name: string
-  icon: string
+  image?: string | null
   questions: any[]
 }
 
@@ -113,8 +113,12 @@ export default function CreationsLibrary({ isRtl, lang }: { isRtl: boolean, lang
               <div className="flex items-center justify-between mb-6">
                 <div className="flex -space-x-3">
                   {creation.categories.slice(0, 3).map((cat, i) => (
-                    <div key={i} className="w-10 h-10 rounded-full border-2 border-[var(--bg-card)] bg-white/5 flex items-center justify-center text-sm shadow-xl">
-                      {cat.icon}
+                    <div key={i} className="w-10 h-10 rounded-full border-2 border-[var(--bg-card)] bg-white/5 flex items-center justify-center text-sm shadow-xl overflow-hidden">
+                      {cat.image ? (
+                        <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span>📷</span>
+                      )}
                     </div>
                   ))}
                   {creation.categories.length > 3 && (

@@ -611,8 +611,12 @@ export default function GameBoard() {
                   >
                     <div className="absolute inset-0 z-10 w-full h-full flex items-center justify-center overflow-hidden">
                       {cat.image_url ? ( <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover opacity-90" /> ) : 
+                       cat.icon && cat.icon.startsWith('data:image') ? (
+                         <img src={cat.icon} alt={cat.name} className="w-full h-full object-cover opacity-90" />
+                       ) :
                        cat.icon ? ( <span className="text-6xl md:text-8xl filter saturate-150 drop-shadow-lg">{cat.icon}</span> ) : 
-                       ( <span className="text-6xl md:text-8xl">🎮</span> )}
+                       ( <span className="text-6xl md:text-8xl">🎮</span> )
+                      }
                     </div>
                     <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-black/90 to-transparent z-10" />
                     <h2 className={`relative z-20 font-black tracking-widest text-white/90 uppercase px-2 pb-3 md:pb-6 w-full text-center break-words leading-tight drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] transition-all ${
