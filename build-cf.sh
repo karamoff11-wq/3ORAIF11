@@ -6,7 +6,7 @@ echo "🚀 [1/3] Cleaning previous builds..."
 rm -rf .open-next
 
 echo "📦 [2/3] Building with OpenNext..."
-npx @opennextjs/cloudflare@latest build
+npx -y @opennextjs/cloudflare@latest build
 
 echo "🔧 [3/3] Preparing Cloudflare Pages structure..."
 if [ -f ".open-next/worker.js" ]; then
