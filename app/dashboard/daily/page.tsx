@@ -11,35 +11,7 @@ import { ensureAuthenticated } from '@/lib/testMode'
 // ─────────────────────────────────────────────
 // DAILY QUESTIONS (Extremely Hard MCQs)
 // ─────────────────────────────────────────────
-const DAILY_QUESTIONS = [
-  {
-    id: 'q1',
-    questionAr: 'ما هو اسم الجسيم الأولي الذي يُعتقد أنه المسؤول عن إعطاء المادة كتلتها في النموذج المعياري لفيزياء الجسيمات؟',
-    questionEn: 'What is the name of the elementary particle thought to be responsible for giving matter its mass in the Standard Model of particle physics?',
-    optionsAr: ['بوزون هيغز', 'كوارك قمي', 'غلوون', 'نيوترينو'],
-    optionsEn: ['Higgs Boson', 'Top Quark', 'Gluon', 'Neutrino'],
-    correct: 0,
-    xp: 500
-  },
-  {
-    id: 'q2',
-    questionAr: 'في أي عام تم توقيع معاهدة ويستفاليا التي أنهت حرب الثلاثين عاماً وأرست أسس الدولة القومية الحديثة؟',
-    questionEn: 'In what year was the Treaty of Westphalia signed, ending the Thirty Years\' War and laying the foundations for the modern nation-state?',
-    optionsAr: ['١٦١٨', '١٦٤٨', '١٧١٣', '١٥٩٨'],
-    optionsEn: ['1618', '1648', '1713', '1598'],
-    correct: 1,
-    xp: 450
-  },
-  {
-    id: 'q3',
-    questionAr: 'ما هي اللغة البرمجية التي استُخدمت لكتابة نظام التحكم في رحلة أبولو ١١ إلى القمر؟',
-    questionEn: 'What programming language was used to write the Apollo 11 moon landing guidance system control software?',
-    optionsAr: ['فورتران', 'سي (C)', 'لغة التجميع (Assembly)', 'كوبول'],
-    optionsEn: ['Fortran', 'C', 'Assembly', 'COBOL'],
-    correct: 2,
-    xp: 600
-  }
-]
+import { DAILY_QUESTIONS } from '@/data/dailyChallenges'
 
 export default function DailyChallengePage() {
   const router = useRouter()
