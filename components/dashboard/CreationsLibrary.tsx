@@ -36,41 +36,9 @@ export default function CreationsLibrary({ isRtl, lang }: { isRtl: boolean, lang
     load()
   }, [])
 
-  const handlePlay = async (creation: Creation) => {
+  const handlePlay = (creation: Creation) => {
     setLaunching(creation.id)
-    const tid = toast.loading(isRtl ? 'جاري بدء اللعبة...' : 'Launching game...')
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
-
-      // 1. Create a session
-      const session = await gameEngine.createSession(user.id, 'local')
-      
-      // 2. Set Name & Auto-create 2 default teams
-      await Promise.all([
-        (supabase.from('sessions') as any).update({ name: creation.name }).eq('id', session.id),
-        (supabase.from('teams') as any).insert([
-          { session_id: session.id, name: isRtl ? 'الفريق 1' : 'Team 1', color: '#8B5CF6', score: 0 },
-          { session_id: session.id, name: isRtl ? 'الفريق 2' : 'Team 2', color: '#EC4899', score: 0 }
-        ])
-      ])
-
-      // 3. Inject Studio Questions directly
-      await gameEngine.generateQuestions(session.id, creation)
-      
-      // 4. Start Session
-      await gameEngine.startGame(session.id)
-      
-      // 5. Direct Redirect to Game Board (Skip Setup)
-      router.push(`/game/${session.id}`)
-      
-      toast.success(isRtl ? 'استمتع باللعب!' : 'Enjoy the game!', { id: tid })
-    } catch (err: any) {
-      console.error(err)
-      toast.error(err.message, { id: tid })
-      setLaunching(null)
-    }
+    router.push(`/game/setup/studio/${creation.id}`)
   }
 
   if (creations.length === 0) return null

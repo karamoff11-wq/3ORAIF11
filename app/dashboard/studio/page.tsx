@@ -75,7 +75,10 @@ export default function StudioPage() {
   const [categories, setCategories] = useState<Category[]>([
     { name: '', image: null, questions: [
         { text: '', answer: '', difficulty: 'easy', image: null },
+        { text: '', answer: '', difficulty: 'easy', image: null },
         { text: '', answer: '', difficulty: 'medium', image: null },
+        { text: '', answer: '', difficulty: 'medium', image: null },
+        { text: '', answer: '', difficulty: 'hard', image: null },
         { text: '', answer: '', difficulty: 'hard', image: null },
     ]}
   ])
@@ -100,12 +103,14 @@ export default function StudioPage() {
     setCategories([...categories, { 
       name: '', 
       image: null,
-      questions: Array(6).fill(null).map((_, i) => ({
-        text: '',
-        answer: '',
-        difficulty: i < 2 ? 'easy' : i < 4 ? 'medium' : 'hard',
-        image: null
-      }))
+      questions: [
+        { text: '', answer: '', difficulty: 'easy', image: null },
+        { text: '', answer: '', difficulty: 'easy', image: null },
+        { text: '', answer: '', difficulty: 'medium', image: null },
+        { text: '', answer: '', difficulty: 'medium', image: null },
+        { text: '', answer: '', difficulty: 'hard', image: null },
+        { text: '', answer: '', difficulty: 'hard', image: null },
+      ]
     }])
     setActiveCatIndex(categories.length)
   }
@@ -434,6 +439,23 @@ export default function StudioPage() {
                   </button>
                   <button 
                     onClick={async () => { 
+                      if (categories.length !== 6) {
+                        toast.error(isRtl ? 'يجب إنشاء 6 فئات بالضبط!' : 'You must create exactly 6 categories!')
+                        return
+                      }
+                      for (const cat of categories) {
+                        if (!cat.name) {
+                          toast.error(isRtl ? 'يرجى تسمية جميع الفئات' : 'Please name all categories')
+                          return
+                        }
+                        for (const q of cat.questions) {
+                          if (!q.text) {
+                            toast.error(isRtl ? `يرجى تعبئة جميع الأسئلة في فئة ${cat.name}` : `Please fill all questions in ${cat.name}`)
+                            return
+                          }
+                        }
+                      }
+                      
                       setSaving(true)
                       const newId = `studio_${Date.now()}`
                       const newCreation = {
