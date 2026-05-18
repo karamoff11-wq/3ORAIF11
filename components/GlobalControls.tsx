@@ -65,22 +65,36 @@ export default function GlobalControls() {
               ))}
             </div>
 
-            {/* Theme Toggle */}
-            <div className="flex gap-1 p-1 rounded-2xl bg-white/5 border border-white/5">
-              {[
-                { id: 'light', icon: '☀️' },
-                { id: 'dark', icon: '🌙' },
-                { id: 'system', icon: '💻' }
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setThemeMode(m.id as any)}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm transition-all ${themeMode === m.id ? 'bg-white/10 text-white shadow-lg' : 'text-white/30 hover:text-white/60'}`}
-                  style={{ background: themeMode === m.id ? accentColor : undefined }}
-                >
-                  {m.icon}
-                </button>
-              ))}
+            {/* Premium Animated Theme Switch (Galahhad Uiverse) */}
+            <div className="flex items-center justify-center p-2 rounded-2xl bg-white/5 border border-white/5 my-1">
+              <label className="theme-switch cursor-pointer" title={lang === 'AR' ? 'تبديل المظهر' : 'Toggle Theme'}>
+                <input 
+                  type="checkbox" 
+                  className="theme-switch__checkbox" 
+                  checked={themeMode === 'dark'} 
+                  onChange={(e) => setThemeMode(e.target.checked ? 'dark' : 'light')} 
+                />
+                <div className="theme-switch__container">
+                  <div className="theme-switch__clouds" />
+                  <div className="theme-switch__stars-container">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 55" fill="none">
+                      <path fill="currentColor" d="M112.827 16.5517C111.954 12.0298 107.545 9.0768 103.023 9.94978C98.5015 10.8228 95.5485 15.2315 96.4215 19.7534C97.2945 24.2753 101.703 27.2283 106.225 26.3553C110.747 25.4824 113.7 21.0736 112.827 16.5517ZM106.918 22.8465C104.093 23.3923 101.338 21.5466 100.792 18.7214C100.246 15.8962 102.092 13.1408 104.917 12.595C107.742 12.0492 110.498 13.8949 111.043 16.7201C111.589 19.5453 109.743 22.3007 106.918 22.8465Z"/>
+                      <polygon fill="currentColor" points="26,0 27.5,4 31.5,5.5 27.5,7 26,11 24.5,7 20.5,5.5 24.5,4 "/>
+                      <polygon fill="currentColor" points="66,20 67,22.5 69.5,23.5 67,24.5 66,27 65,24.5 62.5,23.5 65,22.5 "/>
+                      <polygon fill="currentColor" points="12,35 13,37.5 15.5,38.5 13,39.5 12,42 11,39.5 8.5,38.5 11,37.5 "/>
+                    </svg>
+                  </div>
+                  <div className="theme-switch__circle-container">
+                    <div className="theme-switch__sun-moon-container">
+                      <div className="theme-switch__moon">
+                        <div className="theme-switch__spot" />
+                        <div className="theme-switch__spot" />
+                        <div className="theme-switch__spot" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </label>
             </div>
 
             {/* Sound Toggle */}

@@ -20,5 +20,9 @@ export function useSoundSystem() {
     audioDirector.runSequence([{ kind: 'sfx', type: 'reveal' }], { priority: 'high' })
   }, [])
 
-  return { playTick, playCorrect, playWrong, playReveal }
+  const playFanfare = useCallback(() => {
+    audioDirector.runSequence([{ kind: 'sfx', type: 'reveal' }], { priority: 'high' })
+  }, [])
+
+  return { playTick, playCorrect, playWrong, playReveal, playFanfare }
 }

@@ -44,9 +44,12 @@ interface GameActions {
   setBuzzedTeamId: (id: string | null) => void
   setMediaRevealed: (revealed: boolean) => void
   setBroadcastChannel: (ch: import('@supabase/supabase-js').RealtimeChannel | null) => void
+  setPunishmentConfig: (mode: import('@/types/game').PunishmentMode | null, punishments: import('@/types/game').Punishment[]) => void
+  triggerPunishmentPopup: (team: Team) => void
+  closePunishmentPopup: () => void
 }
 
-export const useGameStore = create<GameState & GameActions>((set) => ({
+export const useGameStore = create<GameState & GameActions>((set, get) => ({
   sessionId: '',
   mode: 'local',
   phase: 'lobby',
@@ -79,6 +82,10 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   buzzedTeamId: null,
   mediaRevealed: false,
   broadcastChannel: null,
+  punishmentMode: null,
+  punishments: [],
+  activePunishment: null,
+  punishmentEscalationLevel: 1,
 
   setSession: (sessionId, mode) => set({ sessionId, mode }),
   setPhase: (phase) => set({ phase }),
@@ -118,7 +125,10 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     isTalking: false,
     selectedQuestion: null,
     thinkingCount: 0,
-    buzzedTeamId: null
+    buzzedTeamId: null,
+    activePunishment: null,
+    punishmentMode: null,
+    punishments: []
   }),
   setIsTalking: (isTalking) => set({ isTalking }),
   incrementThinkingCount: () => set((state) => ({ thinkingCount: state.thinkingCount + 1 })),
@@ -126,5 +136,26 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   setPlayerTeamId: (playerTeamId) => set({ playerTeamId }),
   setBuzzedTeamId: (buzzedTeamId) => set({ buzzedTeamId }),
   setMediaRevealed: (mediaRevealed) => set({ mediaRevealed }),
-  setBroadcastChannel: (broadcastChannel) => set({ broadcastChannel })
+  setBroadcastChannel: (broadcastChannel) => set({ broadcastChannel }),
+  setPunishmentConfig: (punishmentMode, punishments) => set({ punishmentMode, punishments }),
+  triggerPunishmentPopup: (team) => {
+    const { punishmentMode, punishments, punishmentEscalationLevel } = get()
+    if (!punishmentMode || punishmentMode === 'off' || punishments.length === 0) return
+
+    let selected: import('@/types/game').Punishment
+    if (punishmentMode === 'escalating') {
+      const candidates = punishments.filter(p => p.level === punishmentEscalationLevel && p.enabled)
+      const pool = candidates.length > 0 ? candidates : punishments.filter(p => p.enabled)
+      selected = pool[Math.floor(Math.random() * pool.length)] || punishments[0]
+      const nextLevel = (punishmentEscalationLevel < 3 ? punishmentEscalationLevel + 1 : 3) as 1 | 2 | 3
+      set({ punishmentEscalationLevel: nextLevel })
+    } else {
+      const pool = punishments.filter(p => p.enabled)
+      const activePool = pool.length > 0 ? pool : punishments
+      selected = activePool[Math.floor(Math.random() * activePool.length)] || punishments[0]
+    }
+
+    set({ activePunishment: { team, punishment: selected, mode: punishmentMode } })
+  },
+  closePunishmentPopup: () => set({ activePunishment: null })
 }))

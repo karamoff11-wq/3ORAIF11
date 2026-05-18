@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabaseClient'
 import { useTranslator } from '@/lib/i18n'
-import { useFeedbackStore } from '@/store/feedbackStore'
+import { useFeedbackStore, playSound } from '@/store/feedbackStore'
 // SVG ICONS — consistent with dashboard
 const Icon = {
   Gift: () => (
@@ -44,7 +44,7 @@ const Icon = {
 export default function StorePage() {
   const router = useRouter()
   const supabase = createClient()
-  const { lang } = useFeedbackStore()
+  const { lang, lastMysteryBoxClaimDate, claimMysteryBox } = useFeedbackStore()
   const t = useTranslator()
   const isRtl = lang === 'AR'
   const [mounted, setMounted] = useState(false)
@@ -53,6 +53,26 @@ export default function StorePage() {
   const [redeeming, setRedeeming] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [creditsAdded, setCreditsAdded] = useState(0)
+
+  // Mystery Box State
+  const canClaimBox = !lastMysteryBoxClaimDate || new Date().getTime() - new Date(lastMysteryBoxClaimDate).getTime() > 24 * 3600 * 1000
+  const [openingBox, setOpeningBox] = useState(false)
+  const [boxPrize, setBoxPrize] = useState<string | null>(null)
+
+  const handleOpenMysteryBox = () => {
+    if (!canClaimBox || openingBox) return
+    setOpeningBox(true)
+    playSound('whoosh')
+    setTimeout(() => {
+      playSound('pop')
+      playSound('fanfare')
+      const prizes = ['+150 XP & +1 SESS', '+300 XP Sparkle', 'Golden 2x Boost (1hr)']
+      const prize = prizes[Math.floor(Math.random() * prizes.length)]
+      setBoxPrize(prize)
+      claimMysteryBox()
+      setOpeningBox(false)
+    }, 1800)
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -323,8 +343,56 @@ export default function StorePage() {
 
       </div>
 
+      {/* ── Daily Mystery Gift Box ── */}
+      <section className="space-y-4 pt-8">
+        <div className="p-10 rounded-[3.5rem] border relative overflow-hidden group shadow-2xl bg-gradient-to-r from-purple-900/30 via-indigo-900/30 to-blue-900/30"
+          style={{ borderColor: 'rgba(139,92,246,0.3)' }}>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(139,92,246,0.25),transparent_70%)] pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-start flex-1">
+              <motion.div
+                animate={openingBox ? { rotate: [0, -15, 15, -15, 15, 0], scale: [1, 1.2, 1.2, 1.2, 1] } : { y: [0, -6, 0] }}
+                transition={openingBox ? { duration: 0.5, repeat: 3 } : { duration: 3, repeat: Infinity }}
+                className="w-24 h-24 rounded-[2.5rem] flex items-center justify-center text-5xl bg-purple-500/20 border border-purple-500/30 shadow-[0_0_30px_rgba(139,92,246,0.4)] shrink-0 cursor-pointer mx-auto md:mx-0"
+                onClick={handleOpenMysteryBox}
+              >
+                🎁
+              </motion.div>
+              <div className="space-y-2">
+                <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-purple-500 text-white inline-block shadow-lg">
+                  {isRtl ? 'مجاني يومياً' : 'DAILY FREE'}
+                </span>
+                <h3 className="text-3xl md:text-4xl font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                  {isRtl ? 'صندوق المفاجآت الغامض' : 'Daily Mystery Gift Box'}
+                </h3>
+                <p className="text-sm opacity-80 font-medium max-w-lg" style={{ color: 'var(--text-secondary)' }}>
+                  {boxPrize ? (
+                    <span className="text-green-400 font-bold text-base flex items-center gap-2 justify-center md:justify-start">
+                      ✨ {isRtl ? `حصلت على: ${boxPrize}` : `You received: ${boxPrize}`}
+                    </span>
+                  ) : canClaimBox ? (
+                    isRtl ? 'انقر لفتح الصندوق الآن واكتشف الجائزة السحرية المخفية في الداخل!' : 'Click to open the box now and discover the magical prize hidden inside!'
+                  ) : (
+                    isRtl ? 'تم فتح الصندوق اليوم! عد غداً لمفاجأة جديدة.' : 'Box opened today! Come back tomorrow for a new surprise.'
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <button
+              disabled={!canClaimBox || openingBox}
+              onClick={handleOpenMysteryBox}
+              className="px-10 py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-2xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white disabled:opacity-30 disabled:grayscale transition-all hover:scale-105 active:scale-95 shrink-0"
+            >
+              {openingBox ? (isRtl ? 'جاري الفتح...' : 'Opening...') : boxPrize ? (isRtl ? 'تم الاستلام' : 'Claimed') : canClaimBox ? (isRtl ? 'افتح الصندوق' : 'Open Box') : (isRtl ? 'متاح غداً' : 'Available Tomorrow')}
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Section 3: Gifting Bundles */}
-      <section className="space-y-8">
+      <section className="space-y-8 pt-12">
         <div className="space-y-2">
           <h3 className="text-2xl font-black flex items-center gap-3" style={{ color: 'var(--text-primary)' }}>
             <span style={{ color: accentColor }}><Icon.ShoppingBag /></span>

@@ -10,6 +10,7 @@ import { useGameStore } from '@/store/gameStore'
 import { useSoundSystem } from '@/hooks/useSoundSystem'
 import { getRandomHumor } from '@/utils/humor'
 import { track } from '@/lib/analytics'
+import { useDriftFreeTimer, usePreflightWarmup, useAntiCheatBuzzer, useOptimisticQuestionQueue } from '@/hooks/useElitePerformance'
 
 interface Team { id: string; name: string; color: string; score: number }
 interface Question {
@@ -81,15 +82,23 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
       })
   }, [supabase])
 
-  // Timer
-  useEffect(() => {
-    if (!timerRunning || phase !== 'idle' || timeLeft <= 0) return
-    const t = setTimeout(() => {
-      setTimeLeft(p => p - 1)
-      if (timeLeft <= 4 && timeLeft > 1) playTick()
-    }, 1000)
-    return () => clearTimeout(t)
-  }, [timeLeft, timerRunning, phase, playTick])
+  // Preflight Warmup & Optimistic Pre-fetcher
+  usePreflightWarmup(store.sessionQuestions)
+  useOptimisticQuestionQueue(store.sessionQuestions, sq.id)
+
+  // Dedicated Web Worker Drift-Free Timer
+  const { adjustTimer } = useDriftFreeTimer({
+    initialSeconds: scoringConfig.default_timer_seconds,
+    running: timerRunning && phase === 'idle' && !store.buzzedTeamId && !awarded,
+    onTick: useCallback((sec: number) => {
+      setTimeLeft(sec)
+      if (sec <= 4 && sec > 0) playTick()
+    }, [playTick]),
+    onExpire: useCallback(() => {
+      setTimeLeft(0)
+      setTimerRunning(false)
+    }, []),
+  })
 
   const handleReveal = useCallback(() => {
     if (phase !== 'idle' || !store.isHost) return
@@ -98,14 +107,12 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
     setTimeout(() => setPhase('revealed'), 600)
   }, [phase, store.isHost])
 
-  const handleBuzz = useCallback(() => {
+  const rawBuzz = useCallback(() => {
     if (store.isHost || !store.playerTeamId || store.buzzedTeamId) return
 
-    // Optimistic local update
     store.setBuzzedTeamId(store.playerTeamId)
     playTick()
 
-    // Broadcast buzz
     if (store.broadcastChannel) {
       store.broadcastChannel.send({
         type: 'broadcast',
@@ -114,6 +121,8 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
       })
     }
   }, [store, playTick])
+
+  const { triggerBuzz: handleBuzz } = useAntiCheatBuzzer(rawBuzz)
 
   const finishQuestion = useCallback(async (team: Team | null) => {
     if (awarded) return
@@ -144,6 +153,12 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
     }
 
     setHumorMessage(spokenText)
+
+    if (!team || team.id !== activeTeam?.id) {
+      if (store.punishmentMode && store.punishments && store.punishments.length > 0 && activeTeam) {
+        store.triggerPunishmentPopup(activeTeam)
+      }
+    }
 
     // ── MARK QUESTION USED (sync local, then async DB) ──
     store.markQuestionUsed(sq.id)
@@ -253,20 +268,22 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
           backdropFilter: 'blur(60px)',
           borderRadius: 40,
           border: `1px solid rgba(255,255,255,0.08)`,
+          willChange: 'transform, opacity, box-shadow',
+          transform: 'translate3d(0, 0, 0)',
         }}
       >
-        {/* Cinematic Glowing Side Strips (LED Effect) */}
+        {/* Cinematic Glowing Side Strips (LED Effect - Outward Glow Only) */}
         <motion.div
           className="absolute inset-y-0 left-0 w-1.5 z-50"
           animate={{ opacity: [0.3, 1, 0.3], background: [`${teamColor}30`, teamColor, `${teamColor}30`] }}
           transition={{ duration: 3, repeat: Infinity }}
-          style={{ boxShadow: `0 0 20px ${teamColor}` }}
+          style={{ boxShadow: `-15px 0 30px ${teamColor}` }}
         />
         <motion.div
           className="absolute inset-y-0 right-0 w-1.5 z-50"
           animate={{ opacity: [0.3, 1, 0.3], background: [`${teamColor}30`, teamColor, `${teamColor}30`] }}
           transition={{ duration: 3, repeat: Infinity }}
-          style={{ boxShadow: `0 0 20px ${teamColor}` }}
+          style={{ boxShadow: `15px 0 30px ${teamColor}` }}
         />
 
         {/* Ambient Corner Glows */}
@@ -297,7 +314,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
             <div className="flex items-center gap-3">
               {/* Adjust time */}
               <div className="flex items-center gap-1">
-                <button onClick={() => setTimeLeft(p => Math.max(0, p - (scoringConfig.time_adjustment_seconds || 5)))}
+                <button onClick={() => adjustTimer(Math.max(0, timeLeft - (scoringConfig.time_adjustment_seconds || 5)))}
                   className="w-7 h-7 rounded-full flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all text-lg font-black">−</button>
                 <button onClick={() => setTimerRunning(r => !r)}
                   className="w-7 h-7 rounded-full flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all">
@@ -306,7 +323,7 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                     : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   }
                 </button>
-                <button onClick={() => setTimeLeft(p => p + (scoringConfig.time_adjustment_seconds || 5))}
+                <button onClick={() => adjustTimer(timeLeft + (scoringConfig.time_adjustment_seconds || 5))}
                   className="w-7 h-7 rounded-full flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all text-lg font-black">+</button>
               </div>
 
@@ -569,17 +586,33 @@ export default function QuestionModal({ sq, points, teams, onClose, triggerReact
                       </button>
                     </div>
                   ) : (
-                    <motion.button
-                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                      onClick={onClose}
-                      className="w-full py-4 rounded-2xl font-black text-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
-                      style={{
-                        background: `${teamColor}15`,
-                        border: `1px solid ${teamColor}30`,
-                        color: teamColor,
-                      }}>
-                      العودة للوحة ←
-                    </motion.button>
+                    <div className="flex flex-col gap-3">
+                      <motion.button
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        onClick={onClose}
+                        className="w-full py-4 rounded-2xl font-black text-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        style={{
+                          background: `${teamColor}15`,
+                          border: `1px solid ${teamColor}30`,
+                          color: teamColor,
+                        }}>
+                        العودة للوحة ←
+                      </motion.button>
+                      {store.punishmentMode && store.punishments && store.punishments.length > 0 && activeTeam && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                          onClick={() => store.triggerPunishmentPopup(activeTeam)}
+                          className="w-full py-3.5 rounded-2xl font-black text-base transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                          style={{
+                            background: 'rgba(239,68,68,0.12)',
+                            border: '1px solid rgba(239,68,68,0.3)',
+                            color: '#ef4444',
+                            boxShadow: '0 0 20px rgba(239,68,68,0.15)'
+                          }}>
+                          <span>⚡ تطبيق عقوبة على {activeTeam.name} ✕</span>
+                        </motion.button>
+                      )}
+                    </div>
                   )
                 )}
 

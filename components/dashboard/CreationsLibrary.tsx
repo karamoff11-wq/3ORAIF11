@@ -30,10 +30,15 @@ export default function CreationsLibrary({ isRtl, lang }: { isRtl: boolean, lang
     async function load() {
       const { getAllCreations } = await import('@/lib/indexedDB')
       const data = await getAllCreations()
-      // Sort by newest first
       setCreations((data as any[]).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
     }
     load()
+    window.addEventListener('focus', load)
+    window.addEventListener('creations_updated', load)
+    return () => {
+      window.removeEventListener('focus', load)
+      window.removeEventListener('creations_updated', load)
+    }
   }, [])
 
   const handlePlay = (creation: Creation) => {
@@ -60,7 +65,7 @@ export default function CreationsLibrary({ isRtl, lang }: { isRtl: boolean, lang
         </div>
         <button 
           onClick={() => router.push('/dashboard/studio')}
-          className="px-6 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+          className="btn-aurora btn-aurora-studio px-6 py-3 font-black text-xs uppercase tracking-widest text-white shadow-2xl"
         >
           {isRtl ? 'فتح الاستوديو' : 'Open Studio'}
         </button>
@@ -115,7 +120,7 @@ export default function CreationsLibrary({ isRtl, lang }: { isRtl: boolean, lang
               <button 
                 disabled={launching === creation.id}
                 onClick={() => handlePlay(creation)}
-                className="w-full py-4 rounded-2xl bg-white text-black font-black text-[10px] uppercase tracking-[0.3em] hover:scale-[1.02] active:scale-95 transition-all shadow-xl disabled:opacity-50"
+                className="btn-aurora btn-aurora-local w-full py-4 font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl disabled:opacity-50"
               >
                 {launching === creation.id ? (isRtl ? 'جاري التحميل...' : 'Launching...') : (isRtl ? 'ابدأ اللعب الآن' : 'Play Now')}
               </button>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabaseClient'
@@ -8,6 +8,7 @@ import { gameEngine } from '@/lib/gameEngine'
 import Mascot from '@/components/Mascot'
 import toast from 'react-hot-toast'
 import { useFeedbackStore } from '@/store/feedbackStore'
+import type { MascotState } from '@/types/game'
 
 const PALETTE = [
   '#8B5CF6', '#EC4899', '#3B82F6', '#10B981', 
@@ -15,19 +16,40 @@ const PALETTE = [
 ] as const
 
 const MASCOT_QUOTES_AR = [
-  'الميدان يا حميدان! 🔥',
-  'ألوان تشعل الحماس! 🎨',
-  'من سيتوج بطل الاستوديو؟ 🏆',
-  'التحدي يحتاج أعصاب من حديد! ⚡',
-  'جاهزون للمعركة الفكرية؟ 🧠'
+  'فضايح اليوم برعاية الاستوديو! 🤫🎭',
+  'مين فاكر الذكريات والمواقف المحرجة؟ 😂🔥',
+  'أسرار وحكايات ما يعلم بيها إلا الحاضرين! 🌟',
+  'الأسئلة دي مش من جوجل، دي من الصميم! 🎯',
+  'جهزوا نفسكم للضحك والذكريات الجميلة! 🍿✨',
+  'جلسة خاصة جداً، اللي يحصل هنا يفضل هنا! 🔒😎'
 ]
 
 const MASCOT_QUOTES_EN = [
-  'Bring your A-game! 🔥',
-  'Colors that spark passion! 🎨',
-  'Who will be the Studio Champion? 🏆',
-  'Nerves of steel required! ⚡',
-  'Ready for the ultimate brain battle? 🧠'
+  'Inside jokes and untold memories loading... 🤫🎭',
+  'Who is ready to get called out today? 😂🔥',
+  'No Google search can save you now! 🎯',
+  'Private memories, legendary battles! 🌟',
+  'What happens in the studio, stays in the studio! 🔒😎'
+]
+
+const CREATIVE_NAMES_AR = [
+  'شلة الأنس', 'أبطال السهرة', 'ملوك التريفيا', 'فريق الفضايح', 'العباقرة المقنعين', 
+  'صيادي النقاط', 'أصحاب المزاج', 'فرسان الطاولة', 'دكاترة التحليل', 'أساطير الضحك',
+  'صقور الليل', 'قاهرين الصعاب', 'مجانين الذكريات', 'وحوش التحدي', 'أصحاب السوابق',
+  'عصابة القهوة', 'المخضرمين', 'الخبراء الاستراتيجيين', 'حزب الكنبة', 'فريق الطوارئ',
+  'الرايقين جداً', 'أبطال الكيبورد', 'أصحاب النفوس الطيبة', 'مستشارين الشلة', 'صناع السعادة',
+  'الفرقة الانتحارية', 'سادة التكتيك', 'تجار السعادة', 'فريق الأحلام', 'أصحاب العقول الكبيرة',
+  'مكتشفي الثغرات', 'قراصنة الأجوبة', 'محترفي التسليك', 'أساتذة الارتجال', 'الخط الساخن',
+  'رواد الفضاء', 'أسياد اللعبة', 'ملوك المزاج', 'فرقة التدخل السريع', 'الرقم الصعب'
+]
+
+const CREATIVE_NAMES_EN = [
+  'Night Owls', 'Trivia Titans', 'Gossip Gurus', 'Memory Masters', 'Point Hunters',
+  'Vibe Tribe', 'The Masterminds', 'Quiz Legends', 'Chaos Club', 'Elite Contenders',
+  'Brainy Bunch', 'Sofa Surfers', 'Coffee Cartel', 'The High Rollers', 'Buzzer Beaters',
+  'Fact Finders', 'Laughter Syndicate', 'Procrastinators', 'Secret Geniuses', 'Dream Team',
+  'Quiztophians', 'The Untouchables', 'Mystery Solvers', 'Late Night Squad', 'Vibe Checkers',
+  'Lethal Intelligence', 'Underdog Empire', 'Savage Scholars', 'Mind Benders', 'Trivia Mafia'
 ]
 
 // Simple Web Audio UI Beep for premium feedback
@@ -47,7 +69,7 @@ const playSound = (freq = 400, type: OscillatorType = 'sine', duration = 0.08) =
     osc.start()
     osc.stop(ctx.currentTime + duration)
   } catch (e) {
-    // Audio context not allowed or supported
+    // Audio context not allowed
   }
 }
 
@@ -144,7 +166,7 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
   const [step, setStep] = useState(1)
   const [activeColorPicker, setActiveColorPicker] = useState<number | null>(null)
   
-  const [mascotState, setMascotState] = useState<'thinking' | 'happy' | 'celebrating' | 'shocked'>('thinking')
+  const [mascotState, setMascotState] = useState<MascotState>('thinking')
   const [quoteIdx, setQuoteIdx] = useState(0)
 
   const [teams, setTeams] = useState<Team[]>([
@@ -162,7 +184,7 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
       try {
         const { getAllCreations } = await import('@/lib/indexedDB')
         const all = await getAllCreations()
-        const found = all.find(c => c.id === creationId)
+        const found = all.find((c: any) => c.id === creationId)
         if (found) setCreation(found)
         else {
           toast.error(isRtl ? 'لم يتم العثور على الجلسة' : 'Session not found')
@@ -177,18 +199,11 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
     load()
   }, [creationId, isRtl, router])
 
-  // Close color picker when clicking outside
-  useEffect(() => {
-    const handleWindowClick = () => setActiveColorPicker(null)
-    window.addEventListener('click', handleWindowClick)
-    return () => window.removeEventListener('click', handleWindowClick)
-  }, [])
-
   // Cycle mascot quote & state on click
   const handleMascotClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    playSound(523, 'triangle', 0.1) // C5
-    const states: ('thinking' | 'happy' | 'celebrating' | 'shocked')[] = ['happy', 'celebrating', 'shocked', 'thinking']
+    playSound(523, 'triangle', 0.1)
+    const states: MascotState[] = ['correct', 'hype', 'idle', 'thinking']
     setMascotState(prev => states[(states.indexOf(prev) + 1) % states.length])
     setQuoteIdx(prev => (prev + 1) % (isRtl ? MASCOT_QUOTES_AR.length : MASCOT_QUOTES_EN.length))
   }
@@ -202,7 +217,6 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
 
     playSound(800, 'sine', 0.15)
     setIsStarting(true)
-    const tid = toast.loading(isRtl ? 'جاري تجهيز مسرح المواجهة...' : 'Setting up the arena...')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -223,14 +237,12 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
       ])
 
       await gameEngine.generateQuestions(session.id, creation)
-      await gameEngine.startGame(session.id)
       
-      toast.success(isRtl ? 'استمتع بالتحدي الملحمي!' : 'Enjoy the epic battle!', { id: tid })
-      router.push(`/game/${session.id}`)
+      router.push(`/game/${session.id}?fast=1`)
       
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message, { id: tid })
+      toast.error(err.message)
       setIsStarting(false)
     }
   }
@@ -264,10 +276,10 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
               className="w-full flex flex-col items-center justify-center max-h-full my-auto"
             >
               
-              {/* Header Title */}
+              {/* Top Studio Badge & Title */}
               <div className="text-center mb-8">
-                <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="inline-block px-5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-extrabold text-[#D4AF37] tracking-widest uppercase mb-2 backdrop-blur-md shadow-[0_0_20px_rgba(212,175,55,0.2)]">
-                  {isRtl ? '✨ جلسة خاصة (مسرحك الخاص) ✨' : '✨ PRIVATE STUDIO SESSION ✨'}
+                <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="inline-block px-5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-black text-[#D4AF37] tracking-widest uppercase mb-2 backdrop-blur-md shadow-[0_0_20px_rgba(212,175,55,0.2)]">
+                  {isRtl ? '✨ جلسة خاصة (ذكريات وأسرار الاستوديو) ✨' : '✨ PRIVATE STUDIO SESSION ✨'}
                 </motion.div>
                 <h1 className="text-4xl md:text-6xl font-black text-white drop-shadow-2xl tracking-tight line-clamp-1 max-w-3xl px-4">
                   {creation.name}
@@ -277,7 +289,7 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
               {/* Main Arena Box */}
               <div className="w-full bg-white/[0.04] border border-white/10 rounded-[2.5rem] p-6 md:p-10 backdrop-blur-2xl shadow-[0_0_100px_rgba(0,0,0,0.9)] flex flex-col md:flex-row items-center gap-8 md:gap-12 max-w-4xl relative">
                 
-                {/* Left/Right: Interactive Big Mascot */}
+                {/* Mascot Column with Private Session Witty Quotes */}
                 <motion.div 
                   className="w-full md:w-5/12 flex flex-col items-center justify-center relative cursor-pointer group select-none py-4"
                   onClick={handleMascotClick}
@@ -290,9 +302,9 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
                     initial={{ y: 5 }} 
                     animate={{ y: [-4, 4, -4] }} 
                     transition={{ repeat: Infinity, duration: 3.5 }}
-                    className="absolute -top-6 md:-top-10 bg-[#0F0F1A]/90 border border-[#D4AF37]/40 rounded-2xl px-5 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-xl text-center z-20 pointer-events-none"
+                    className="absolute -top-8 md:-top-12 bg-[#0F0F1A]/95 border border-[#D4AF37]/50 rounded-2xl px-6 py-3 shadow-[0_15px_40px_rgba(0,0,0,0.95)] backdrop-blur-2xl text-center z-20 pointer-events-none max-w-[280px]"
                   >
-                    <span className="text-xs md:text-sm font-black text-[#FFE885] whitespace-nowrap drop-shadow">
+                    <span className="text-xs md:text-sm font-black text-[#FFE885] leading-snug drop-shadow block">
                       {quotes[quoteIdx]}
                     </span>
                   </motion.div>
@@ -307,90 +319,107 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
 
                   <div className="mt-4 text-center z-10">
                     <span className="text-[11px] text-white/40 uppercase tracking-widest font-extrabold bg-white/5 px-4 py-1.5 rounded-full border border-white/10 group-hover:border-white/30 group-hover:text-white/80 transition-all shadow-inner">
-                      {isRtl ? '👈 انقر للتفاعل' : '👈 Click to interact'}
+                      {isRtl ? '👈 انقر لتغيير المقولة' : '👈 Click to interact'}
                     </span>
                   </div>
                 </motion.div>
 
-                {/* Right/Left: Dual Team Input & Precise Color Picker */}
+                {/* Team Input Column with Smooth Collapsible Color Tray */}
                 <div className="w-full md:w-7/12 flex flex-col gap-6">
                   {teams.map((team, idx) => (
                     <div 
                       key={idx}
-                      className="relative bg-black/60 border rounded-2xl p-4 md:p-5 backdrop-blur-2xl transition-all shadow-2xl flex items-center gap-4 group"
+                      className="relative bg-black/60 border rounded-2xl p-4 md:p-6 backdrop-blur-2xl transition-all shadow-2xl flex flex-col gap-3 group"
                       style={{ 
-                        boxShadow: activeColorPicker === idx ? `0 0 50px ${team.color}70` : `0 0 25px ${team.color}20`,
+                        boxShadow: activeColorPicker === idx ? `0 0 50px ${team.color}60` : `0 0 25px ${team.color}15`,
                         borderColor: activeColorPicker === idx ? team.color : 'rgba(255,255,255,0.15)'
                       }}
                     >
-                      {/* Color Picker Popover Container */}
-                      <div className="relative z-30">
+                      <div className="flex items-center gap-4">
+                        {/* Number Trigger */}
                         <button 
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
+                          onClick={() => {
                             playSound(600 + idx * 100, 'sine', 0.05)
                             setActiveColorPicker(activeColorPicker === idx ? null : idx)
                           }}
-                          className="w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center font-black text-2xl md:text-3xl shadow-2xl transition-transform hover:scale-110 active:scale-95 border-2 border-white/30"
+                          className="w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center font-black text-2xl md:text-3xl shadow-2xl transition-transform hover:scale-105 active:scale-95 border-2 border-white/30 shrink-0"
                           style={{ background: team.color, boxShadow: `0 0 30px ${team.color}90` }}
+                          title={isRtl ? 'انقر لتغيير اللون' : 'Click to change color'}
                         >
                           <span className="text-white drop-shadow-md">{idx + 1}</span>
                         </button>
 
-                        {/* Popover Grid */}
-                        <AnimatePresence>
-                          {activeColorPicker === idx && (
-                            <motion.div 
-                              initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.8, y: 10 }}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`absolute top-20 ${isRtl ? 'right-0' : 'left-0'} z-50 bg-[#0A0A14] border-2 border-white/20 rounded-2xl p-3.5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] grid grid-cols-4 gap-2.5 backdrop-blur-3xl`}
+                        {/* Team Name Input & Randomizer */}
+                        <div className="flex-1 space-y-1 w-full overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <input 
+                              value={team.name}
+                              onChange={(e) => {
+                                const n = [...teams]; n[idx].name = e.target.value; setTeams(n)
+                              }}
+                              className="w-full bg-transparent text-white font-black text-2xl md:text-3xl tracking-wide placeholder:text-white/20 focus:outline-none pb-1 truncate"
+                              placeholder={isRtl ? `اسم الفريق ${idx + 1}` : `Team ${idx + 1} Name`}
+                            />
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                playSound(700 + idx * 150, 'triangle', 0.08)
+                                const list = isRtl ? CREATIVE_NAMES_AR : CREATIVE_NAMES_EN
+                                const random = list[Math.floor(Math.random() * list.length)]
+                                const n = [...teams]; n[idx].name = random; setTeams(n)
+                                setMascotState('hype')
+                              }}
+                              className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:scale-110 active:scale-95 text-[#D4AF37] flex items-center justify-center transition-all shrink-0 shadow-lg group/btn"
+                              title={isRtl ? 'اسم عشوائي مبتكر' : 'Randomize Name'}
                             >
+                              <span className="text-xl md:text-2xl transition-transform group-hover/btn:rotate-45">🎲</span>
+                            </button>
+                          </div>
+                          {/* Directional gradient underline */}
+                          <div 
+                            className="h-1 rounded-full w-full transition-all duration-500 opacity-60 group-focus-within:opacity-100 shadow-lg" 
+                            style={{ 
+                              backgroundImage: `linear-gradient(${isRtl ? 'to left' : 'to right'}, ${team.color}, transparent)`,
+                              boxShadow: `0 0 15px ${team.color}`
+                            }} 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Smooth Sliding Horizontal Color Tray (Zero Clipping, 100% Reliable) */}
+                      <AnimatePresence>
+                        {activeColorPicker === idx && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: 'easeInOut' }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-4 mt-2 border-t border-white/10 flex flex-wrap gap-2.5 items-center justify-center bg-black/40 p-3 rounded-xl">
                               {PALETTE.map(c => (
                                 <button 
                                   key={c}
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
+                                  onClick={() => {
                                     playSound(880, 'triangle', 0.08)
                                     const n = [...teams]; n[idx].color = c; setTeams(n)
                                     setActiveColorPicker(null)
-                                    setMascotState('celebrating')
+                                    setMascotState('hype')
                                   }}
-                                  className="w-9 h-9 rounded-xl transition-transform hover:scale-125 hover:z-10 border border-white/30 shadow-lg relative flex items-center justify-center"
+                                  className="w-8 h-8 md:w-9 md:h-9 rounded-xl transition-transform hover:scale-125 hover:rotate-6 border-2 border-white/40 shadow-xl relative flex items-center justify-center cursor-pointer"
                                   style={{ background: c }}
                                 >
                                   {team.color === c && (
-                                    <span className="text-white font-black text-sm drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">✓</span>
+                                    <span className="text-white font-black text-sm drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">✓</span>
                                   )}
                                 </button>
                               ))}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
-                      {/* Team Input & Directional Underline */}
-                      <div className="flex-1 space-y-1">
-                        <input 
-                          value={team.name}
-                          onChange={(e) => {
-                            const n = [...teams]; n[idx].name = e.target.value; setTeams(n)
-                          }}
-                          className="w-full bg-transparent text-white font-black text-2xl md:text-3xl tracking-wide placeholder:text-white/20 focus:outline-none pb-1"
-                          placeholder={isRtl ? `اسم الفريق ${idx + 1}` : `Team ${idx + 1} Name`}
-                        />
-                        {/* Underline switches direction perfectly based on RTL/LTR */}
-                        <div 
-                          className="h-1 rounded-full w-full transition-all duration-500 opacity-50 group-focus-within:opacity-100 shadow-lg" 
-                          style={{ 
-                            backgroundImage: `linear-gradient(${isRtl ? 'to left' : 'to right'}, ${team.color}, transparent)`,
-                            boxShadow: `0 0 15px ${team.color}`
-                          }} 
-                        />
-                      </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   ))}
 
@@ -398,10 +427,10 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => { playSound(659, 'sine', 0.1); setStep(2); }}
-                    className="w-full mt-3 py-5 rounded-2xl bg-gradient-to-r from-white to-white/90 text-black font-black uppercase tracking-[0.2em] shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:shadow-[0_0_80px_rgba(255,255,255,0.6)] transition-all text-base flex items-center justify-center gap-3"
+                    className="btn-aurora btn-aurora-gold w-full py-5 font-black uppercase tracking-[0.2em] shadow-2xl text-base flex items-center justify-center gap-3 text-white"
                   >
                     <span>{isRtl ? 'التالي: استعراض المواجهة' : 'Next: Review Contenders'}</span>
-                    <span className="text-xl">→</span>
+                    <span className="text-xl font-bold">→</span>
                   </motion.button>
                 </div>
 
@@ -462,10 +491,10 @@ export default function StudioSetupPage({ params }: { params: Promise<{ creation
                   whileTap={{ scale: 0.97 }} 
                   onClick={handleStart}
                   disabled={isStarting}
-                  className="flex-[2] px-12 py-5 rounded-2xl bg-gradient-to-r from-[#D4AF37] to-[#F59E0B] text-black font-black uppercase tracking-[0.2em] shadow-[0_0_60px_rgba(212,175,55,0.7)] hover:shadow-[0_0_100px_rgba(212,175,55,1)] transition-all disabled:opacity-50 disabled:pointer-events-none text-base md:text-lg flex items-center justify-center gap-3 border border-[#FFE885]"
+                  className="btn-aurora btn-aurora-sunset flex-[2] py-5 font-black uppercase tracking-[0.2em] shadow-2xl disabled:opacity-50 text-base md:text-lg flex items-center justify-center gap-3 text-white"
                 >
                   {isStarting ? (
-                     <span className="w-7 h-7 border-4 border-black/30 border-t-black rounded-full animate-spin inline-block" />
+                     <span className="w-7 h-7 border-4 border-white/30 border-t-white rounded-full animate-spin inline-block" />
                   ) : (
                     <span>{isRtl ? 'انطلاق المواجهة الملحمية' : 'LAUNCH SHOWDOWN'} 🚀</span>
                   )}

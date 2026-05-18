@@ -34,7 +34,7 @@ export default function Mascot({
 
   // Derive dark variant for gradient end stop
   const palette = TEAM_PALETTE.find(p => p.color.toLowerCase() === color.toLowerCase())
-  const darkColor = palette?.dark || '#000000'
+  const darkColor = palette?.dark || color
 
   useEffect(() => {
     if (!isTalking) return

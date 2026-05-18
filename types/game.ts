@@ -6,6 +6,15 @@ export type Difficulty = 'easy' | 'medium' | 'hard'
 export type GamePhase = 'lobby' | 'playing' | 'reveal' | 'finished'
 export type MascotState = 'idle' | 'correct' | 'wrong' | 'punishment' | 'thinking' | 'hype' | 'angry' | 'sad'
 
+export interface Punishment {
+  id: string
+  text: string
+  level: 1 | 2 | 3
+  enabled: boolean
+}
+
+export type PunishmentMode = 'wheel' | 'voted' | 'escalating' | 'mixed'
+
 export interface Session {
   id: string
   host_id: string
@@ -14,6 +23,8 @@ export interface Session {
   join_code: string | null
   current_question_index: number
   current_team_index: number
+  punishment_mode?: PunishmentMode | null
+  punishments?: Punishment[] | null
   created_at: string
 }
 
@@ -90,6 +101,12 @@ export interface ThemeConfig {
   card_style: 'glass' | 'solid' | 'outline'
 }
 
+export interface ActivePunishment {
+  team: Team
+  punishment: Punishment
+  mode: PunishmentMode
+}
+
 export interface GameState {
   sessionId: string
   mode: GameMode
@@ -114,4 +131,8 @@ export interface GameState {
   buzzedTeamId: string | null
   mediaRevealed: boolean
   broadcastChannel: import('@supabase/supabase-js').RealtimeChannel | null
+  punishmentMode: PunishmentMode | null
+  punishments: Punishment[]
+  activePunishment: ActivePunishment | null
+  punishmentEscalationLevel: 1 | 2 | 3
 }

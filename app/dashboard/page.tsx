@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabaseClient'
@@ -10,11 +10,16 @@ import toast from 'react-hot-toast'
 import { ensureAuthenticated } from '@/lib/testMode'
 import { Database } from '@/types/database'
 import { isUserAdmin } from '@/lib/admin'
-import { useFeedbackStore } from '@/store/feedbackStore'
+import { useFeedbackStore, playSound } from '@/store/feedbackStore'
+import { AvatarWithFrame } from '@/components/AvatarWithFrame'
 import { useTranslator } from '@/lib/i18n'
 import { track, identifyUser, resetAnalytics } from '@/lib/analytics'
 import CreationsLibrary from '@/components/dashboard/CreationsLibrary'
 import AssetPreloader from '@/components/AssetPreloader'
+import { Vortex } from '@/components/Vortex'
+import { CanvasText } from '@/components/CanvasText'
+import { DashboardNavigation } from '@/components/DashboardNavigation'
+
 
 // ─────────────────────────────────────────────
 // UPGRADE SUCCESS OVERLAY
@@ -112,6 +117,93 @@ function UpgradeSuccessOverlay({ plan, onDismiss, accentColor }: {
         >
           ابدأ الآن ←
         </motion.button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// STREAK REWARDS CALENDAR MODAL
+// ─────────────────────────────────────────────
+function StreakRewardsModal({ isOpen, onClose, streak, lang, accentColor }: {
+  isOpen: boolean; onClose: () => void; streak: number; lang: string; accentColor: string;
+}) {
+  const isRtl = lang === 'AR'
+  const { lastStreakClaimDate, claimStreakReward } = useFeedbackStore()
+  const isClaimedToday = lastStreakClaimDate && new Date(lastStreakClaimDate).toDateString() === new Date().toDateString()
+  const [claimedAnim, setClaimedAnim] = useState(false)
+
+  if (!isOpen) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-2xl"
+    >
+      <motion.div
+        initial={{ scale: 0.85, y: 30, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.85, y: 30, opacity: 0 }}
+        className="relative w-full max-w-lg p-8 md:p-12 rounded-[3.5rem] border overflow-hidden shadow-[0_40px_100px_rgba(245,158,11,0.3)] glass-card"
+        style={{ borderColor: 'rgba(245,158,11,0.4)', background: '#0D0904' }}
+      >
+        <div className="absolute -top-32 -right-32 w-64 h-64 blur-[100px] bg-amber-500/30 rounded-full pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col items-center text-center space-y-6">
+          <motion.div
+            animate={{ scale: [1, 1.15, 1], rotate: [-5, 5, -5] }}
+            transition={{ duration: 3, repeat: Infinity }}
+            className="w-24 h-24 rounded-full flex items-center justify-center text-6xl bg-amber-500/20 border border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.5)] mx-auto"
+          >
+            🔥
+          </motion.div>
+
+          <div>
+            <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30 mb-3 inline-block">
+              {isRtl ? 'سلسلة الحماس اليومية' : 'Daily Streak Tracker'}
+            </span>
+            <h2 className="text-3xl font-black text-white">
+              {isRtl ? `${streak} أيام متتالية!` : `${streak} Days Streak!`}
+            </h2>
+            <p className="text-sm text-white/50 font-medium max-w-sm mt-2">
+              {isRtl ? 'حافظ على حماسك اليومي لفتح مكافآت ضخمة ومضاعفات خبرة حصرية.' : 'Maintain your daily streak to unlock massive rewards and exclusive XP multipliers.'}
+            </p>
+          </div>
+
+          {/* 7-Day Roadmap Grid */}
+          <div className="grid grid-cols-7 gap-2 w-full pt-4">
+            {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+              const active = streak >= day
+              return (
+                <div key={day} className={`flex flex-col items-center p-3 rounded-2xl border transition-all ${active ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)]' : 'bg-white/5 border-white/5 text-white/20'}`}>
+                  <span className="text-[10px] font-black mb-1">{isRtl ? `يوم ${day}` : `D${day}`}</span>
+                  <span className="text-xl">{active ? '🔥' : '🔒'}</span>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="w-full pt-6">
+            <button
+              disabled={isClaimedToday || claimedAnim}
+              onClick={() => {
+                playSound('claim')
+                playSound('fanfare')
+                setClaimedAnim(true)
+                claimStreakReward()
+                setTimeout(() => setClaimedAnim(false), 2000)
+              }}
+              className="w-full py-5 rounded-[2rem] font-black uppercase tracking-widest text-sm text-black shadow-2xl transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:grayscale"
+              style={{ background: 'linear-gradient(135deg, #F59E0B, #F5D142)' }}
+            >
+              {claimedAnim ? (isRtl ? '✨ +250 XP تمت الإضافة!' : '✨ +250 XP Claimed!') : isClaimedToday ? (isRtl ? 'تم استلام مكافأة اليوم' : 'Today\'s Bonus Claimed') : (isRtl ? 'استلام مكافأة الحماس' : 'Claim Daily Bonus')}
+            </button>
+          </div>
+
+          <button onClick={onClose} className="text-xs text-white/40 hover:text-white uppercase tracking-widest font-black">
+            {isRtl ? 'إغلاق النافذة' : 'Close Modal'}
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   )
@@ -261,20 +353,23 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
   title: string; subtitle?: string; badge?: string; accentColor: string; isRtl: boolean
 }) {
   return (
-    <div className={`flex flex-col ${isRtl ? 'items-end text-right ml-auto w-fit' : 'items-start text-left w-full'} gap-3 mb-10 group/header`} dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className="flex items-center gap-4">
-        <div className={`flex flex-col ${isRtl ? 'items-end' : 'items-start'}`}>
+    <div className="flex flex-col gap-3 mb-8 w-full group/header" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex items-center justify-between gap-4 w-full">
+        <div className="flex flex-col items-start text-start">
           <motion.h2
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-2xl font-black tracking-tighter"
-            style={{ color: 'var(--text-primary)' }}
+            className="text-2xl md:text-3xl font-black tracking-tight relative overflow-visible"
           >
-            {title}
+            <CanvasText
+              text={title}
+              colors={[accentColor, "#EC4899", "#8B5CF6", "#3B82F6", "#10B981"]}
+              className="font-black"
+            />
           </motion.h2>
           {subtitle && (
-            <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.3em] mt-1" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.3em] mt-1" style={{ color: 'var(--text-secondary)' }}>
               {subtitle}
             </p>
           )}
@@ -283,7 +378,7 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
           <motion.span
             initial={{ scale: 0 }}
             whileInView={{ scale: 1 }}
-            className="px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest text-white shadow-2xl"
+            className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-2xl shrink-0"
             style={{ background: `linear-gradient(135deg, ${accentColor}, #6366F1)` }}
           >
             {badge}
@@ -291,31 +386,24 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
         )}
       </div>
 
-      {/* Elegant Aurora HUD Line */}
-      <div className={`relative ${isRtl ? 'w-56' : 'w-full'} min-w-[140px] h-px overflow-hidden`}>
+      {/* Flawless Premium Aurora HUD Line */}
+      <div className="relative w-full h-[3px] overflow-hidden rounded-full bg-white/5 border border-white/5">
         {/* Base Subtle Track */}
         <div
-          className="absolute inset-0 opacity-20"
+          className="absolute inset-0 opacity-40 transition-all duration-700"
           style={{ background: `linear-gradient(${isRtl ? '270deg' : '90deg'}, ${accentColor} 0%, transparent 100%)` }}
         />
 
-        {/* Smooth Flowing Pulse */}
+        {/* Flowing Animated Pulse Track */}
         <motion.div
-          className="absolute inset-y-0 w-64"
-          animate={{ [isRtl ? 'right' : 'left']: ['-100%', '150%'] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-0 bottom-0 w-1/3 rounded-full"
+          animate={{ x: isRtl ? ['300%', '-100%'] : ['-100%', '300%'] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           style={{
-            background: `radial-gradient(circle at center, ${accentColor} 0%, transparent 75%)`,
-            opacity: 0.6
+            background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)`,
+            opacity: 0.8,
+            boxShadow: `0 0 12px ${accentColor}`
           }}
-        />
-
-        {/* Leading Elegant Dot */}
-        <motion.div
-          className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full blur-[1px]"
-          animate={{ [isRtl ? 'right' : 'left']: ['-5%', '105%'] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          style={{ backgroundColor: accentColor, boxShadow: `0 0 8px ${accentColor}` }}
         />
       </div>
     </div>
@@ -328,201 +416,47 @@ function SmartHeader({ title, subtitle, badge, accentColor, isRtl }: {
 function DashboardBackground({ accentColor, themeMode }: { accentColor: string; themeMode: string }) {
   const isLight = themeMode === 'light'
 
-  // Generate particles for a "living" background
-  const particles = useMemo(() =>
-    Array.from({ length: 22 }, (_, i) => ({
-      id: i,
-      size: Math.random() * 3 + 1,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      duration: Math.random() * 20 + 10,
-      delay: Math.random() * -20,
-    })), []
-  )
+  let baseHue = 220; // Default blue
+  if (accentColor.toLowerCase() === '#ec4899') baseHue = 330; // Pink
+  else if (accentColor.toLowerCase() === '#10b981') baseHue = 160; // Emerald
+  else if (accentColor.toLowerCase() === '#f59e0b') baseHue = 35;  // Amber
+  else if (accentColor.toLowerCase() === '#8b5cf6') baseHue = 270; // Violet
 
   return (
     <div
       className="fixed inset-0 z-0 pointer-events-none overflow-hidden transition-colors duration-1000"
-      style={{ background: isLight ? '#F9FAFB' : '#020205' }}
+      style={{ background: isLight ? '#FDFDFD' : '#040209' }}
     >
-      {/* 1. Cinematic Film Grain */}
-      <div className={`absolute inset-0 ${isLight ? 'opacity-[0.04]' : 'opacity-[0.06]'} mix-blend-overlay pointer-events-none z-50 noise`} />
-
-      {/* 2. Dynamic Grid with Mask */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `linear-gradient(to right, ${accentColor}${isLight ? '20' : '15'} 1px, transparent 1px),
-            linear-gradient(to bottom, ${accentColor}${isLight ? '20' : '15'} 1px, transparent 1px)`,
-          backgroundSize: '60px 60px',
-          maskImage: 'radial-gradient(circle at center, black 30%, transparent 80%)',
-        }}
+      <Vortex
+        baseHue={baseHue}
+        particleCount={600}
+        rangeY={1000}
+        baseRadius={1}
+        rangeRadius={3}
+        baseSpeed={0.2}
+        rangeSpeed={1.5}
+        isLight={isLight}
       />
-
-      {/* 3. Deep Nebula Blobs */}
-      <motion.div
-        animate={{
-          x: [0, 80, -40, 0],
-          y: [0, -60, 80, 0],
-          scale: [1, 1.2, 0.9, 1],
-        }}
-        transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-        className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full"
-        style={{
-          background: `radial-gradient(circle, ${accentColor}${isLight ? '25' : '40'}, transparent 70%)`,
-          filter: 'blur(100px)',
-          opacity: isLight ? 0.8 : 0.7
-        }}
-      />
-      <motion.div
-        animate={{
-          x: [0, -100, 60, 0],
-          y: [0, 80, -100, 0],
-          scale: [1, 1.1, 1.2, 1],
-        }}
-        transition={{ duration: 35, repeat: Infinity, ease: 'linear' }}
-        className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full"
-        style={{
-          background: `radial-gradient(circle, #6366F1${isLight ? '20' : '35'}, transparent 70%)`,
-          filter: 'blur(100px)',
-          opacity: isLight ? 0.7 : 0.6
-        }}
-      />
-      <motion.div
-        animate={{
-          x: [0, 40, -80, 0],
-          y: [0, 100, -50, 0],
-          scale: [0.8, 1.3, 0.9, 0.8],
-        }}
-        transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-        className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full"
-        style={{
-          background: `radial-gradient(circle, ${isLight ? '#F472B6' : '#EC4899'}25, transparent 70%)`,
-          filter: 'blur(120px)',
-          opacity: 0.4
-        }}
-      />
-
-      {/* 4. Interactive Particle Field */}
-      {particles.map((p, i) => (
-        <motion.div
-          key={p.id}
-          initial={{ x: `${p.x}vw`, y: `${p.y}vh`, opacity: 0 }}
-          animate={{
-            y: [`${p.y}vh`, `${p.y - 15}vh`, `${p.y}vh`],
-            opacity: [0, isLight ? 0.3 : 0.5, 0],
-            scale: [1, 1.5, 1]
-          }}
-          transition={{
-            duration: p.duration,
-            repeat: Infinity,
-            delay: p.delay,
-            ease: "easeInOut"
-          }}
-          className="absolute rounded-full"
-          style={{
-            width: p.size,
-            height: p.size,
-            background: i % 2 === 0 ? accentColor : (isLight ? '#6366F1' : '#34D399'),
-            boxShadow: isLight ? 'none' : `0 0 10px ${accentColor}60`
-          }}
-        />
-      ))}
-
-      {/* 5. Vignette & Depth */}
-      <div className={`absolute inset-0 bg-gradient-to-b from-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} via-transparent to-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} ${isLight ? 'opacity-50' : 'opacity-70'}`} />
-      <div className={`absolute inset-0 bg-gradient-to-r from-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} via-transparent to-${isLight ? '[#FDFCFE]' : '[#0B0B1A]'} ${isLight ? 'opacity-30' : 'opacity-50'}`} />
+      {/* Cinematic Film Grain & Vignette Overlay */}
+      <div className={`absolute inset-0 ${isLight ? 'opacity-[0.03]' : 'opacity-[0.05]'} mix-blend-overlay pointer-events-none z-50 noise`} />
+      <div className={`absolute inset-0 bg-gradient-to-b from-${isLight ? '[#FDFCFE]' : '[#040209]'} via-transparent to-${isLight ? '[#FDFCFE]' : '[#040209]'} ${isLight ? 'opacity-40' : 'opacity-60'}`} />
     </div>
   )
 }
 
-// ─────────────────────────────────────────────
-// SIDEBAR ITEM
-// ─────────────────────────────────────────────
-const SIDEBAR_ICON_KEYS = ['Home', 'User', 'Users', 'Trophy', 'Calendar', 'Store', 'Settings', 'LogOut', 'CreditCard'] as const
-type SidebarIconKey = typeof SIDEBAR_ICON_KEYS[number]
 
-function SidebarItem({
-  iconKey, label, active = false, locked = false, collapsed, lang, accentColor, onClick,
-}: {
-  iconKey: SidebarIconKey; label: string; active?: boolean;
-  locked?: boolean; collapsed: boolean; lang: Lang; accentColor: string; onClick?: () => void
-}) {
-  const [showTip, setShowTip] = useState(false)
-  const t = useTranslator()
-  const isRtl = lang === 'AR'
-  const IconComp = Icon[iconKey] as React.FC
-
-  return (
-    <div
-      className="relative"
-      onMouseEnter={() => locked && setShowTip(true)}
-      onMouseLeave={() => setShowTip(false)}
-    >
-      <motion.div
-        whileHover={!locked ? { x: isRtl ? -4 : 4 } : {}}
-        onClick={!locked ? onClick : undefined}
-        className={`flex items-center gap-4 px-4 py-3 rounded-2xl transition-all relative group ${active ? '' : locked ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:bg-white/[0.02]'
-          }`}
-        style={{
-          background: active ? `${accentColor}12` : 'transparent',
-          border: active ? `1px solid ${accentColor}20` : '1px solid transparent',
-          color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-        }}
-      >
-        {active && (
-          <motion.div
-            layoutId="activeSide"
-            className={`absolute ${isRtl ? 'right-0' : 'left-0'} top-1/2 -translate-y-1/2 w-1 h-8 rounded-full shadow-[0_0_20px_var(--accent-glow)]`}
-            style={{
-              background: `linear-gradient(to bottom, ${accentColor}, #6366F1)`,
-              boxShadow: `0 0 20px ${accentColor}80`
-            }}
-          />
-        )}
-        <span className="shrink-0 transition-transform duration-300 group-hover:scale-110" style={{ color: active ? accentColor : 'inherit' }}>
-          <IconComp />
-        </span>
-        {!collapsed && (
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-sm font-black flex-1 whitespace-nowrap tracking-tight"
-          >
-            {label}
-          </motion.span>
-        )}
-        {!collapsed && locked && <span className="opacity-40"><Icon.Lock /></span>}
-      </motion.div>
-
-      <AnimatePresence>
-        {showTip && (
-          <motion.div
-            initial={{ opacity: 0, x: isRtl ? -6 : 6, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: isRtl ? -6 : 6, scale: 0.95 }}
-            className={`absolute ${isRtl ? 'right-full mr-2' : 'left-full ml-2'} top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap z-50 pointer-events-none glass-card`}
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            {t('side_soon')}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────
 // ACTION CARD
 // ─────────────────────────────────────────────
 function ActionCard({
   title, desc, icon, onClick, loading,
-  accentFrom, accentTo, accentGlow, badge, lang, comingSoon,
+  accentFrom, accentTo, accentGlow, badge, lang, comingSoon, buttonClass = 'btn-aurora-primary'
 }: {
   title: string; desc: string; icon: React.ReactNode;
   onClick: () => void; loading: boolean;
   accentFrom: string; accentTo: string; accentGlow: string;
-  badge: string; lang: Lang; comingSoon?: boolean;
+  badge: string; lang: Lang; comingSoon?: boolean; buttonClass?: string;
 }) {
   const isRtl = lang === 'AR'
   return (
@@ -532,12 +466,12 @@ function ActionCard({
       whileHover={{ y: -12, scale: 1.01 }}
       onClick={!comingSoon ? onClick : undefined}
       className={`relative p-10 md:p-14 rounded-[4rem] border overflow-hidden group flex-1 flex flex-col justify-between transition-all duration-700 glass-card min-h-[420px] ${comingSoon ? 'cursor-not-allowed opacity-70 grayscale' : 'cursor-pointer shadow-2xl hover:shadow-[0_40px_100px_-20px_rgba(67,56,202,0.3)]'
-        } ${isRtl ? 'text-right' : 'text-left'}`}
+        } text-center md:text-start`}
       style={{ borderColor: 'var(--border-subtle)' }}
     >
       {/* Corner Aurora Light */}
       <div
-        className="absolute -top-32 -right-32 w-64 h-64 blur-[100px] opacity-0 group-hover:opacity-30 transition-all duration-1000"
+        className="absolute -top-32 -right-32 w-64 h-64 blur-[100px] opacity-0 group-hover:opacity-30 transition-all duration-1000 pointer-events-none"
         style={{ backgroundColor: accentFrom }}
       />
 
@@ -550,7 +484,7 @@ function ActionCard({
               style={{ color: 'var(--text-tertiary)' }}>
               <Icon.Lock />
             </div>
-            <span className="px-8 py-2.5 rounded-full border-2 text-[11px] font-black uppercase tracking-[0.5em] text-white"
+            <span className="px-8 py-2.5 rounded-full border-2 text-[11px] font-black uppercase tracking-[0.5em] text-white shadow-2xl"
               style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-strong)' }}>
               {isRtl ? 'قريباً' : 'COMING SOON'}
             </span>
@@ -558,15 +492,15 @@ function ActionCard({
         </div>
       )}
 
-      <div className={`flex flex-col ${isRtl ? 'md:flex-row' : 'md:flex-row-reverse'} items-center gap-12 relative z-10`}>
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-10 relative z-10">
         <div
-          className="w-24 h-24 md:w-28 md:h-28 rounded-[3rem] flex items-center justify-center text-5xl md:text-6xl shadow-2xl transition-all duration-700 group-hover:scale-110 group-hover:rotate-12 shrink-0"
+          className="w-24 h-24 md:w-28 md:h-28 rounded-[3rem] flex items-center justify-center text-5xl md:text-6xl shadow-2xl transition-all duration-700 group-hover:scale-110 group-hover:rotate-12 shrink-0 border border-white/10"
           style={{ background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`, color: 'white', boxShadow: `0 20px 50px ${accentGlow}` }}
         >
           {icon}
         </div>
         <div className="flex-1 space-y-4">
-          <div className={`flex items-center gap-4 justify-center ${isRtl ? 'md:justify-start' : 'md:justify-end'}`}>
+          <div className="flex items-center gap-4 justify-center md:justify-start">
             <h3 className="text-4xl md:text-5xl font-black tracking-tighter leading-none" style={{ color: 'var(--text-primary)' }}>{title}</h3>
             {badge && (
               <span className="px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">
@@ -574,25 +508,21 @@ function ActionCard({
               </span>
             )}
           </div>
-          <p className="text-lg opacity-40 font-medium leading-relaxed max-w-sm mx-auto md:mx-0" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
+          <p className="text-lg opacity-60 font-medium leading-relaxed max-w-sm mx-auto md:mx-0" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
         </div>
       </div>
 
-      <div className={`mt-12 flex ${isRtl ? 'justify-end' : 'justify-start'} relative z-30`}>
+      <div className="mt-12 flex justify-center md:justify-end relative z-30">
         <button
           onClick={!comingSoon ? onClick : undefined}
           disabled={loading || comingSoon}
           data-testid="start-session-btn"
-          className="px-12 py-4 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] text-white transition-all flex items-center gap-4 hover:scale-[1.05] active:scale-[0.95] disabled:opacity-50"
-          style={{
-            background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`,
-            boxShadow: `0 20px 40px ${accentGlow}`,
-          }}
+          className={`btn-aurora ${buttonClass} px-12 py-4.5 rounded-[2rem] font-black text-xs uppercase tracking-[0.3em] text-white transition-all flex items-center gap-4 hover:scale-[1.05] active:scale-[0.95] disabled:opacity-50 shadow-2xl`}
         >
           {loading ? (
             <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            <span className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
+            <span className="flex items-center gap-4 flex-row">
               {isRtl ? 'ابدأ النمط' : 'START SESSION'}
               <motion.span
                 animate={{ x: isRtl ? [0, -6, 0] : [0, 6, 0] }}
@@ -772,6 +702,8 @@ function ThemeToggle() {
 // ─────────────────────────────────────────────
 function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: boolean; accentColor: string; profile: Profile | null; router: any }) {
   const t = useTranslator()
+  const { claimedAchievements, claimAchievement } = useFeedbackStore()
+  const [claimingId, setClaimingId] = useState<string | null>(null)
 
   const achievements = [
     {
@@ -827,6 +759,9 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {achievements.map((ach, i) => {
           const isDone = ach.progress >= 100
+          const isClaimed = claimedAchievements.includes(ach.id)
+          const isCurrentlyClaiming = claimingId === ach.id
+
           return (
             <motion.div
               key={ach.id}
@@ -834,7 +769,7 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 * i }}
-              className="p-7 rounded-[2.5rem] glass-card relative overflow-hidden group/ach hover:y-[-5px] transition-all duration-500 border border-white/5"
+              className={`p-7 rounded-[2.5rem] glass-card relative overflow-hidden group/ach transition-all duration-500 border ${isDone && !isClaimed ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.25)]' : 'border-white/5'}`}
             >
               {/* Achievement Corner Glow */}
               <div
@@ -855,14 +790,15 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl transition-all duration-500 ${isDone ? 'bg-white/5 shadow-2xl scale-110' : 'grayscale opacity-20'}`}>
                     {ach.icon}
                   </div>
-                  {isDone && (
-                    <div
-                      className="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-white shadow-xl"
-                      style={{ background: `linear-gradient(135deg, #22c55e, #10B981)` }}
-                    >
-                      {isRtl ? 'مكتمل' : 'UNLOCKED'}
+                  {isClaimed ? (
+                    <div className="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 shadow-xl">
+                      {isRtl ? 'تم الاستلام' : 'CLAIMED'}
                     </div>
-                  )}
+                  ) : isDone ? (
+                    <div className="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/20 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse">
+                      {isRtl ? 'مكافأة متاحة' : 'REWARD READY'}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div>
@@ -898,6 +834,27 @@ function AchievementsSection({ isRtl, accentColor, profile, router }: { isRtl: b
                     </motion.div>
                   </div>
                 </div>
+
+                {/* If isDone and !isClaimed, show gorgeous Claim Button */}
+                {isDone && !isClaimed && (
+                  <div className="pt-2 border-t border-white/10 mt-1">
+                    <button
+                      disabled={isCurrentlyClaiming}
+                      onClick={() => {
+                        playSound('claim')
+                        playSound('fanfare')
+                        setClaimingId(ach.id)
+                        setTimeout(() => {
+                          claimAchievement(ach.id)
+                          setClaimingId(null)
+                        }, 1800)
+                      }}
+                      className="w-full py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest text-black bg-gradient-to-r from-amber-400 to-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition-transform hover:scale-105 active:scale-95"
+                    >
+                      {isCurrentlyClaiming ? (isRtl ? '✨ +500 XP تمت الإضافة!' : '✨ +500 XP Claimed!') : (isRtl ? '🎁 استلام المكافأة' : '🎁 Claim Reward')}
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )
@@ -958,71 +915,14 @@ function WelcomeOverlay({ username, onComplete, accentColor }: {
   )
 }
 
-// ─────────────────────────────────────────────
-// MOBILE BOTTOM NAV
-// ─────────────────────────────────────────────
-function MobileBottomNav({
-  accentColor, onLogout,
-}: {
-  accentColor: string; onLogout: () => void
-}) {
-  const t = useTranslator()
-  const items = [
-    { icon: 'Home' as const, label: t('side_home'), active: true },
-    { icon: 'User' as const, label: t('side_profile') },
-    { icon: 'Trophy' as const, label: t('side_achievements'), locked: true },
-    { icon: 'Settings' as const, label: t('side_settings') },
-  ]
 
-  return (
-    <nav
-      className="fixed bottom-0 inset-x-0 z-40 lg:hidden flex items-center justify-around px-2 py-2"
-      style={{
-        background: 'var(--nav-bg)',
-        backdropFilter: 'blur(24px)',
-        borderTop: '1px solid var(--border-subtle)',
-      }}
-    >
-      {items.map((item, i) => {
-        const IconComp = Icon[item.icon] as React.FC
-        return (
-          <button
-            key={i}
-            className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all relative"
-            style={{
-              color: item.active ? accentColor : 'var(--text-tertiary)',
-              opacity: item.locked ? 0.35 : 1,
-            }}
-          >
-            {item.active && (
-              <div
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full"
-                style={{ background: accentColor }}
-              />
-            )}
-            <IconComp />
-            <span className="text-[9px] font-black tracking-wide">{item.label}</span>
-          </button>
-        )
-      })}
-      {/* Logout on mobile */}
-      <button
-        onClick={onLogout}
-        className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all"
-        style={{ color: 'rgba(239,68,68,0.6)' }}
-      >
-        <Icon.LogOut />
-        <span className="text-[9px] font-black tracking-wide">{t('side_logout')}</span>
-      </button>
-    </nav>
-  )
-}
 
 // ─────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const supabase = useMemo(() => createClient(), [])
 
@@ -1031,6 +931,7 @@ export default function DashboardPage() {
   const [collapsed, setCollapsed] = useState(false)
   const [showUpgrade, setShowUpgrade] = useState(false)
   const [upgradedPlan, setUpgradedPlan] = useState('pro')
+  const [showStreakModal, setShowStreakModal] = useState(false)
 
   const {
     accentColor,
@@ -1046,6 +947,20 @@ export default function DashboardPage() {
   const t = useTranslator()
   const isRtl = lang === 'AR'
   const dir = isRtl ? 'rtl' : 'ltr'
+
+  // Dynamic Level & XP calculation
+  const { totalXP, currentLevel, nextLevelXP, progressPercent } = useMemo(() => {
+    const sp = profile?.sessions_played ?? 0
+    const st = profile?.streak ?? 0
+    const xp = (sp * 150) + (st * 50)
+    const lvl = Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1
+    const baseXP = Math.pow(lvl - 1, 2) * 100
+    const nxtXP = Math.pow(lvl, 2) * 100
+    const prog = Math.min(100, Math.max(0, ((xp - baseXP) / (nxtXP - baseXP)) * 100))
+    return { totalXP: xp, currentLevel: lvl, nextLevelXP: nxtXP, progressPercent: prog }
+  }, [profile])
+
+  const sidebarItems = [] // Kept empty to satisfy any references if needed
 
   // Theme, Lang, and Accent are now handled by AppWrapper globally.
 
@@ -1113,25 +1028,24 @@ export default function DashboardPage() {
   const userId = profile?.id ?? ''
   const userEmail = profile?.email ?? ''
   const isAdmin = isUserAdmin(userEmail)
-
   const finalName = userName || profile?.display_name || profile?.email?.split('@')[0] || '...'
+  const finalAvatarUrl = userAvatar || profile?.avatar_url
   const finalAvatarBg = userAvatarType === 'color' ? userAvatarColor : (profile as any)?.avatar_bg_color || accentColor
   const finalAvatarType = userAvatarType || (profile?.avatar_url ? 'image' : 'color')
-  const finalAvatarUrl = userAvatar || profile?.avatar_url
-
-  const sidebarItems: { labelKey: Parameters<typeof t>[0]; iconKey: SidebarIconKey; active?: boolean; locked?: boolean; href?: string }[] = [
-    { labelKey: 'side_home', iconKey: 'Home', active: true, href: '/dashboard' },
-    { labelKey: 'side_profile', iconKey: 'User', href: '/dashboard/profile' },
-    { labelKey: 'side_billing', iconKey: 'CreditCard', href: '/pricing' },
-    { labelKey: 'side_friends', iconKey: 'Users', locked: true },
-    { labelKey: 'side_achievements', iconKey: 'Trophy', href: '/dashboard/achievements' },
-    { labelKey: 'side_daily', iconKey: 'Calendar', href: '/dashboard/daily' },
-    { labelKey: 'side_store', iconKey: 'Store', href: '/dashboard/store' },
-    { labelKey: 'side_settings', iconKey: 'Settings', href: '/dashboard/settings' },
-  ]
 
   return (<>
     <AssetPreloader />
+    <AnimatePresence>
+      {showStreakModal && (
+        <StreakRewardsModal
+          isOpen={showStreakModal}
+          onClose={() => setShowStreakModal(false)}
+          streak={profile?.streak ?? 0}
+          lang={lang}
+          accentColor={accentColor}
+        />
+      )}
+    </AnimatePresence>
     <div
       className="min-h-screen flex overflow-hidden transition-colors duration-700"
       style={{
@@ -1146,111 +1060,14 @@ export default function DashboardPage() {
       {/* Animated background */}
       <DashboardBackground accentColor={accentColor} themeMode={themeMode} />
 
-
-      {/* ══════════ SIDEBAR (desktop) ══════════ */}
-      <motion.aside
-        animate={{ width: collapsed ? 88 : 280 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-30 h-screen shrink-0 hidden lg:flex flex-col overflow-hidden transition-colors duration-700 border-l border-white/5"
-        style={{
-          background: 'var(--sidebar-bg)',
-          [isRtl ? 'borderLeft' : 'borderRight']: '1px solid var(--border-subtle)',
-          [isRtl ? 'borderRight' : 'borderLeft']: 'none',
-          backdropFilter: 'blur(40px)'
-        }}
-      >
-        {/* Inner Glass Glow (always on the side touching the main content) */}
-        <div className={`absolute inset-y-0 ${isRtl ? 'left-0' : 'right-0'} w-px bg-gradient-to-b from-transparent via-white/5 to-transparent`} />
-
-        {/* Logo Section */}
-        <div className="flex items-center gap-4 p-7 shrink-0 relative overflow-hidden group/logo">
-          <div
-            className="w-11 h-11 rounded-[1.2rem] flex items-center justify-center text-base font-black text-white shrink-0 overflow-hidden shadow-2xl transition-all duration-500 group-hover/logo:scale-110 group-hover/logo:rotate-6"
-            style={{
-              background: `linear-gradient(135deg, ${accentColor}, #EC4899)`,
-              boxShadow: `0 8px 24px ${accentColor}40`
-            }}
-          >
-            <div className="w-full h-full relative">
-              {finalAvatarType === 'image' && finalAvatarUrl ? (
-                <Image src={finalAvatarUrl} alt="Avatar" fill className="object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">{finalName.charAt(0).toUpperCase()}</div>
-              )}
-            </div>
-          </div>
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="flex flex-col"
-              >
-                <span className="font-black text-xl tracking-tighter text-white">العُريف</span>
-                <span className="text-[8px] font-black uppercase tracking-[0.3em] opacity-30 text-white">Platform v1.2</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden no-scrollbar">
-          {sidebarItems.map((item, i) => (
-            <SidebarItem
-              key={i}
-              iconKey={item.iconKey}
-              label={t(item.labelKey)}
-              active={item.active}
-              locked={item.locked}
-              collapsed={collapsed}
-              lang={lang}
-              accentColor={accentColor}
-              onClick={() => item.href && router.push(item.href)}
-            />
-          ))}
-        </nav>
-
-        {/* Sidebar Footer Branding */}
-        <div className="p-4 space-y-4">
-          {/* Logout */}
-          <motion.div
-            whileHover={{ backgroundColor: 'rgba(239,68,68,0.1)' }}
-            onClick={handleLogout}
-            className="flex items-center gap-4 px-4 py-3 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-red-500/10 group"
-          >
-            <span className="shrink-0 text-red-500/40 group-hover:text-red-500 transition-colors"><Icon.LogOut /></span>
-            {!collapsed && <span className="text-xs font-black uppercase tracking-widest text-red-500/40 group-hover:text-red-500">{t('side_logout')}</span>}
-          </motion.div>
-
-          {/* Version / Brand */}
-          {!collapsed && (
-            <div className="px-4 py-2 border-t border-white/5 pt-4">
-              <div className="flex items-center justify-between opacity-20">
-                <span className="text-[8px] font-black uppercase tracking-widest">{isRtl ? 'إنتاج العُريف' : 'BY AL-AREEF'}</span>
-                <div className="flex gap-1">
-                  <div className="w-1 h-1 rounded-full bg-white" />
-                  <div className="w-1 h-1 rounded-full bg-white" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Collapse Trigger (Floating Style) */}
-          <button
-            onClick={() => setCollapsed(p => !p)}
-            className="w-full p-3 flex items-center justify-center transition-all hover:bg-white/5 rounded-2xl group"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            <motion.div
-              animate={{ rotate: collapsed ? 180 : 0 }}
-              className="group-hover:scale-125 transition-transform"
-            >
-              {isRtl ? <Icon.ChevronLeft /> : <Icon.ChevronLeft />}
-            </motion.div>
-          </button>
-        </div>
-      </motion.aside>
+      {/* ══════════ PREMIUM UNIFIED NAVIGATION ══════════ */}
+      <DashboardNavigation
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        profile={profile}
+        userName={userName}
+        finalAvatarUrl={finalAvatarUrl}
+      />
 
       {/* ══════════ MAIN CONTENT ══════════ */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0 relative z-10">
@@ -1264,132 +1081,127 @@ export default function DashboardPage() {
             initial={{ opacity: 0, scale: 0.98, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative overflow-hidden rounded-[3rem] p-px group mb-8"
+            className="relative overflow-hidden rounded-[3rem] p-px group mb-12 shadow-2xl glass-card border border-white/10"
             style={{
-              background: `linear-gradient(135deg, ${accentColor}40, transparent, var(--border-strong))`,
-              boxShadow: '0 30px 80px -20px rgba(0,0,0,0.3)'
+              background: `linear-gradient(135deg, ${accentColor}30, transparent, rgba(255,255,255,0.05))`,
             }}
           >
-            {/* Ambient Aurora Glow (Behind Card) */}
-            <div className="absolute -top-20 -left-20 w-48 h-48 blur-[80px] opacity-20 pointer-events-none" style={{ backgroundColor: accentColor }} />
-            <div className="absolute -bottom-20 -right-20 w-48 h-48 blur-[80px] opacity-20 pointer-events-none" style={{ backgroundColor: '#6366F1' }} />
+            {/* Sleek Minimal Backplate */}
+            <div className="absolute inset-0 bg-[#0B0B18]/70 backdrop-blur-3xl pointer-events-none" />
 
-            {/* HUD Scanning Layer */}
-            <motion.div
-              animate={{ x: isRtl ? ['120%', '-120%'] : ['-120%', '120%'] }}
-              transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 w-1/2 skew-x-12 pointer-events-none z-10"
-              style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent)' }}
-            />
+            <div className="relative rounded-[3rem] p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-10 transition-all duration-700 z-10">
 
-            <div className={`relative overflow-hidden rounded-[2.9rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-10 transition-all duration-700 ${isRtl ? 'md:flex-row-reverse' : 'md:flex-row'}`}
-              style={{ background: 'var(--bg-secondary)', backdropFilter: 'blur(60px)' }}>
+              {/* 1. Leading Identity Block */}
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-8 flex-1 w-full md:w-auto">
+                <AvatarWithFrame
+                  avatarBg={finalAvatarBg}
+                  avatarType={finalAvatarType}
+                  avatarUrl={finalAvatarUrl || undefined}
+                  name={finalName}
+                  level={currentLevel}
+                />
 
-              {/* Complex Background HUD Pattern */}
-              <div className={`absolute inset-0 pointer-events-none select-none opacity-20`} style={{ color: 'var(--text-tertiary)', opacity: 0.05 }}>
-                <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <defs>
-                    <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                      <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.1" />
-                    </pattern>
-                  </defs>
-                  <rect width="100" height="100" fill="url(#grid)" />
-                  <circle cx={isRtl ? "10" : "90"} cy="10" r="20" stroke="currentColor" strokeWidth="0.05" fill="none" />
-                </svg>
-              </div>
+                {/* 2. Massive Greeting Hub */}
+                <div className="flex flex-col items-center md:items-start text-center md:text-start space-y-4 flex-1 w-full max-w-lg">
+                  <div className="space-y-1">
+                    <motion.span
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400"
+                    >
+                      {isRtl ? 'مرحباً بك مجدداً في العُريف' : 'WELCOME BACK, ELITE'}
+                    </motion.span>
+                    <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-tight relative overflow-visible">
+                      <CanvasText
+                        text={finalName}
+                        colors={["#F59E0B", "#F5D142", "#EF4444", "#EC4899", "#8B5CF6"]}
+                        className="font-black"
+                      />
+                    </h1>
+                  </div>
 
-              {/* 1. Identity & Bio-Sync Block */}
-              <div className={`flex flex-col items-center md:items-${isRtl ? 'end' : 'start'} gap-6 relative z-20 shrink-0`}>
-                {/* Multi-Ring Avatar HUD */}
-                <div className="relative">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                    className="absolute -inset-4 rounded-full border border-indigo-500/10 border-dashed"
-                  />
-                  <motion.div
-                    animate={{ rotate: -360 }}
-                    transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-                    className="absolute -inset-8 rounded-full border border-indigo-500/5 border-dotted"
-                  />
-
-                  <div className="relative p-1.5 rounded-full border-2 border-indigo-500/10 shadow-[0_0_40px_rgba(99,102,241,0.1)]">
-                    <div className="w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden shadow-2xl relative" style={{ backgroundColor: finalAvatarBg }}>
-                      {finalAvatarType === 'image' && finalAvatarUrl ? (
-                        <Image src={finalAvatarUrl} alt="Avatar" fill className="object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-4xl font-black text-white">
-                          {finalName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      {/* Inner Glass Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
+                  {/* Gorgeous XP Progress HUD */}
+                  <div className="w-full pt-1 space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black">
+                      <span className="flex items-center gap-1.5" style={{ color: accentColor }}>
+                        <Icon.Trophy />
+                        <span>{isRtl ? `${totalXP} نقطة خبرة` : `${totalXP} XP`}</span>
+                      </span>
+                      <span className="text-[10px] uppercase opacity-60 tracking-widest font-bold" style={{ color: 'var(--text-secondary)' }}>
+                        {isRtl ? `المستوى التالي: ${nextLevelXP}` : `NEXT: ${nextLevelXP} XP`}
+                      </span>
                     </div>
-                    {/* Floating Level Hub */}
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg text-white text-[9px] font-black tracking-widest shadow-2xl border border-white/10"
-                      style={{ backgroundColor: '#1E1B4B', boxShadow: `0 8px 20px rgba(0,0,0,0.5)` }}>
-                      {isRtl ? 'المستوى ٢٤' : 'LVL 24'}
+                    {/* Dynamic XP Progress Bar */}
+                    <div className="h-4 bg-black/40 rounded-full overflow-hidden p-0.5 border border-white/10 shadow-inner">
+                      <motion.div 
+                        className="h-full rounded-full relative overflow-hidden"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progressPercent}%` }}
+                        transition={{ duration: 1.5, ease: "easeOut" }}
+                        style={{ background: `linear-gradient(90deg, ${accentColor}, #EC4899)`, boxShadow: `0 0 15px ${accentColor}` }}
+                      >
+                        <motion.div
+                          animate={{ x: ['-100%', '100%'] }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                          className="absolute inset-0 w-1/2 bg-white/30 skew-x-12 blur-[1px]"
+                        />
+                      </motion.div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 pt-2 justify-center md:justify-start items-center">
+                    <StatPill
+                      iconEl={<Icon.Gamepad size={14} />}
+                      value={profile?.sessions_played ?? 0}
+                      label={isRtl ? 'الجلسات' : 'SESSIONS'}
+                    />
+                    <div onClick={() => { playSound('whoosh'); setShowStreakModal(true); }} className="cursor-pointer transition-transform hover:scale-105 active:scale-95" title={isRtl ? 'عرض مكافآت الحماس اليومية' : 'View Daily Streak Roadmap'}>
+                      <StatPill
+                        iconEl={<Icon.Flame />}
+                        value={profile?.streak ?? 0}
+                        label={isRtl ? 'الحماس' : 'STREAK'}
+                      />
                     </div>
                   </div>
                 </div>
-
               </div>
 
-              {/* 2. Massive Greeting Hub */}
-              <div className={`flex-1 flex flex-col items-center md:items-${isRtl ? 'end' : 'start'} text-center md:text-${isRtl ? 'right' : 'left'} space-y-4 relative z-20`}>
-                <div className="space-y-1">
-                  <motion.span
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400/60"
-                  >
-                    {isRtl ? 'مرحباً بك مجدداً' : 'WELCOME BACK, ELITE'}
-                  </motion.span>
-                  <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-tight" style={{ color: 'var(--text-primary)' }}>
-                    {finalName}
-                  </h1>
-                </div>
-
-              </div>
-
-              {/* 3. Liquid Credit Portfolio Portfolio */}
+              {/* 3. Trailing Liquid Credit Portfolio */}
               <motion.div
-                whileHover={{ scale: 1.02, y: -4 }}
+                whileHover={{ scale: 1.03, y: -4 }}
                 onClick={() => router.push('/pricing')}
-                className="relative group/credits cursor-pointer z-20 shrink-0"
+                className="relative group/credits cursor-pointer z-20 shrink-0 w-full md:w-auto"
               >
-                <div className="p-6 md:p-8 rounded-[2.5rem] border transition-all duration-700 relative overflow-hidden flex flex-col items-center md:items-start min-w-[240px]"
+                <div className="p-8 rounded-[2.5rem] border transition-all duration-700 relative overflow-hidden flex flex-col items-center md:items-start min-w-[240px] shadow-2xl glass-card hover:border-indigo-500/50"
                   style={{ background: 'var(--bg-card)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-card)' }}>
 
                   {/* Portfolio Glow Corner */}
-                  <div className={`absolute top-0 ${isRtl ? 'left-0' : 'right-0'} p-4 text-indigo-500/20 group-hover/credits:text-indigo-500/40 transition-colors`}>
+                  <div className="absolute top-0 right-0 p-6 text-indigo-500/20 group-hover/credits:text-indigo-500/50 transition-colors">
                     <Icon.PlusCircle />
                   </div>
 
-                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400/40 mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">
                     {isRtl ? 'رصيد الجلسات' : 'SESSION CREDITS'}
                   </span>
 
                   <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-black tracking-tighter" style={{ color: 'var(--text-primary)' }}>
+                    <span className="text-6xl font-black tracking-tighter" style={{ color: 'var(--text-primary)' }}>
                       {isAdmin ? '∞' : (profile?.session_credits ?? 0)}
                     </span>
-                    <span className="text-xs font-black opacity-30 uppercase tracking-[0.15em]" style={{ color: 'var(--text-secondary)' }}>
+                    <span className="text-xs font-black opacity-40 uppercase tracking-[0.2em]" style={{ color: 'var(--text-secondary)' }}>
                       {isAdmin ? (isRtl ? 'مشرف' : 'ELITE') : (isRtl ? 'جلسة' : 'SESS')}
                     </span>
                   </div>
 
+                  <div className="mt-4 pt-4 border-t border-white/5 w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-indigo-400">
+                    <span>{isRtl ? 'شحن الرصيد' : 'ADD CREDITS'}</span>
+                    <span>→</span>
+                  </div>
                 </div>
               </motion.div>
             </div>
           </motion.div>
-
-
-
-
-
-
 
           {/* Game Modes Section */}
           <div className="space-y-4">
@@ -1416,6 +1228,7 @@ export default function DashboardPage() {
                   accentGlow={`${accentColor}40`}
                   badge=""
                   lang={lang}
+                  buttonClass="btn-aurora-local"
                 />
               </motion.div>
               <motion.div
@@ -1436,6 +1249,7 @@ export default function DashboardPage() {
                   badge=""
                   lang={lang}
                   comingSoon={true}
+                  buttonClass="btn-aurora-remote"
                 />
               </motion.div>
             </div>
@@ -1478,9 +1292,9 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex flex-col items-center gap-4">
-                  <div className="px-8 py-4 rounded-2xl bg-white text-black font-black uppercase tracking-widest text-xs shadow-xl group-hover:scale-110 transition-transform">
-                    {isRtl ? 'ابدأ الآن' : 'Start Now'}
-                  </div>
+                  <button onClick={() => router.push('/dashboard/daily')} className="btn-aurora btn-aurora-daily px-10 py-4 font-black uppercase tracking-widest text-xs shadow-2xl">
+                    {isRtl ? 'المواجهة الملحمية' : 'EPIC SHOWDOWN'}
+                  </button>
                   <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: '#F59E0B' }}>
                     <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] animate-pulse" />
                     {isRtl ? 'فرصة واحدة فقط' : 'Only One Chance'}
@@ -1541,11 +1355,10 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex flex-col items-center gap-4 shrink-0">
-                  <div className="px-10 py-5 rounded-[2rem] font-black uppercase tracking-widest text-sm text-black transition-all group-hover:scale-105 flex items-center gap-3 shadow-2xl shadow-[#D4AF37]/30"
-                       style={{ background: 'linear-gradient(135deg, #D4AF37, #FDE047)' }}>
+                  <button onClick={() => router.push('/dashboard/studio')} className="btn-aurora btn-aurora-studio px-10 py-4.5 rounded-[2rem] font-black uppercase tracking-widest text-sm text-white shadow-2xl flex items-center gap-3">
                     {isRtl ? 'ادخل الاستوديو' : 'ENTER STUDIO'}
                     <span className="text-xl">✨</span>
-                  </div>
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -1560,9 +1373,6 @@ export default function DashboardPage() {
 
         </main>
       </div>
-
-      {/* Mobile bottom nav */}
-      <MobileBottomNav accentColor={accentColor} onLogout={handleLogout} />
     </div>
 
     {/* ── UPGRADE SUCCESS OVERLAY ── */}

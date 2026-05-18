@@ -121,10 +121,15 @@ class MascotAudioDirector {
       atomicMode: options.atomicMode
     }
 
-    // Lock check
-    if (this.isLocked && seq.priority !== 'interrupt') {
-      console.warn('AudioDirector is LOCKED. Dropping task:', seq)
-      return
+    let isLocalMuted = false
+    if (typeof window !== 'undefined') {
+      try {
+        isLocalMuted = localStorage.getItem('gg-voices') === 'false'
+      } catch { }
+    }
+
+    if (isLocalMuted || this.isLocked) {
+      seq.steps = seq.steps.filter(s => s.kind === 'hook' || s.kind === 'wait')
     }
 
     // Pruning rules

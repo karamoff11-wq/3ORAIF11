@@ -217,8 +217,8 @@ export const gameEngine = {
             if (!qSource || qSource.length === 0) return
             
             const qData = qSource[tIdx % qSource.length]
-            if (qData) {
-              const qKey = `${catId}_${qData.text}`
+            if (qData && qData.text) {
+              const qKey = `${catId}_${qData.text.trim()}`
               let qId = questionMap.get(qKey)
 
               if (!qId) {

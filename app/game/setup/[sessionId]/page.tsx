@@ -9,9 +9,11 @@ import { gameEngine } from '@/lib/gameEngine'
 import { useSession } from '@/hooks/useSession'
 import Mascot from '@/components/Mascot'
 import toast from 'react-hot-toast'
-import { useFeedbackStore } from '@/store/feedbackStore'
+import { useFeedbackStore, playSound } from '@/store/feedbackStore'
 import { useTranslator } from '@/lib/i18n'
-import { audioDirector } from '@/lib/audioDirector'
+import { WobbleCard } from "@/components/ui/wobble-card"
+import { DirectionAwareHover } from "@/components/ui/direction-aware-hover"
+import { PremiumSearchBar } from "@/components/ui/premium-search-bar"
 
 // ─────────────────────────────────────────────
 // Types
@@ -34,40 +36,49 @@ interface Punishment {
   id: string; text: string; level: 1 | 2 | 3; enabled: boolean
 }
 type PunishmentMode = 'wheel' | 'voted' | 'escalating' | 'mixed'
-interface AsteroidBody {
-  id: number; x: number; y: number; vx: number; vy: number
-  r: number; color: string; ptSet: number; rotation: number
-  rotSpeed: number; isFragment: boolean; flashTimer: number
-  cooldown: number
-}
-interface Star { x: number; y: number; r: number; sp: number; ph: number }
-interface Shot { x: number; y: number; vx: number; vy: number; len: number; op: number; life: number; maxLife: number; active: boolean; timer: number }
-
 // ─────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────
 const MAX_CATS = 6
 const DRAFT_KEY = 'gg-draft'
 
-const TEAM_COLORS = ['#8B5CF6', '#EC4899', '#3B82F6', '#10B981'] as const
-
-// Asteroid vertices centered at (0,0), radius ≈ 45px
-const AST_PTS = [
-  [[-22, -37], [12, -39], [38, -21], [46, 9], [32, 33], [2, 39], [-30, 35], [-46, 14], [-44, -15]],
-  [[-32, -31], [0, -38], [30, -29], [44, -3], [38, 24], [12, 39], [-22, 37], [-42, 17], [-45, -11]],
-  [[-15, -39], [18, -37], [40, -13], [42, 15], [24, 37], [-6, 41], [-34, 27], [-45, -1], [-32, -22]],
-  [[-28, -33], [8, -39], [34, -19], [45, 11], [30, 35], [-2, 41], [-32, 29], [-47, 3], [-20, -17]],
-] as const
+const TEAM_COLORS = ['#FF0055', '#00E5FF', '#7000FF', '#00FF66', '#FFB700', '#FF00CC', '#3D59FF', '#00FFCC'] as const
 
 const DEFAULT_PUNISHMENTS: Punishment[] = [
+  // Level 1: Easy & Amusing
   { id: 'p1', text: 'اعمل 10 ضغطات', level: 1, enabled: true },
   { id: 'p2', text: 'غني مقطع من أغنية', level: 1, enabled: true },
+  { id: 'p5', text: 'اشرب كوب ماء دفعة واحدة', level: 1, enabled: true },
+  { id: 'p9', text: 'تحدث بلهجة فضائية غريبة لمدة دقيقة', level: 1, enabled: true },
+  { id: 'p10', text: 'امشِ في الغرفة على أطراف أصابعك كاللص', level: 1, enabled: true },
+  { id: 'p11', text: 'قف على قدم واحدة طوال الجولة القادمة', level: 1, enabled: true },
+  { id: 'p12', text: 'قم بأداء تحية عسكرية مبالغ فيها لكل الحاضرين', level: 1, enabled: true },
+  { id: 'p13', text: 'تظاهر بأنك روبوت نفدت بطاريته ببطء', level: 1, enabled: true },
+  { id: 'p14', text: 'ابتسم ابتسامة عريضة دون توقف لمدة دقيقة', level: 1, enabled: true },
+  { id: 'p15', text: 'اصنع قبعة من الورق وضعها على رأسك', level: 1, enabled: true },
+
+  // Level 2: Hilarious & Engaging
   { id: 'p3', text: 'قل أحرج سر عندك', level: 2, enabled: true },
   { id: 'p4', text: 'قلّد شخصية مشهورة لدقيقة', level: 2, enabled: true },
-  { id: 'p5', text: 'اشرب كوب ماء دفعة واحدة', level: 1, enabled: true },
+  { id: 'p8', text: 'حكّي نكتة وإلا تعاقب مرتين', level: 2, enabled: true },
+  { id: 'p16', text: 'قم بأداء رقصة درامية حزينة لمدة دقيقة', level: 2, enabled: true },
+  { id: 'p17', text: 'اشرح لماذا الدجاجة عبرت الشارع بأسلوب فيلسوف', level: 2, enabled: true },
+  { id: 'p18', text: 'حاول إقناع الفريق المنافس بشراء قلمك الفارغ', level: 2, enabled: true },
+  { id: 'p19', text: 'تظاهر بأنك معلق رياضي يصف مباراة شطرنج حماسية', level: 2, enabled: true },
+  { id: 'p20', text: 'تحدث باللغة العربية الفصحى فقط للجولتين القادمتين', level: 2, enabled: true },
+  { id: 'p21', text: 'قم بتمثيل مشهد درامي صامت يعبر عن الجوع الشديد', level: 2, enabled: true },
+  { id: 'p22', text: 'قلّد صوت ثلاثة حيوانات مختلفة ببراعة', level: 2, enabled: true },
+
+  // Level 3: Challenging & Unforgettable
   { id: 'p6', text: 'ابق صامتاً لدورتين كاملتين', level: 3, enabled: true },
   { id: 'p7', text: 'اعترف بأحرج موقف في حياتك', level: 3, enabled: true },
-  { id: 'p8', text: 'حكّي نكتة وإلا تعاقب مرتين', level: 2, enabled: true },
+  { id: 'p23', text: 'امنع استخدام حرف الألف في كلامك للجولة القادمة', level: 3, enabled: true },
+  { id: 'p24', text: 'تظاهر بأنك مذيع نشرة جوية يواجه إعصاراً مدمراً', level: 3, enabled: true },
+  { id: 'p25', text: 'غنِّ أغنية أطفال مشهورة بأسلوب الأوبرا الدرامية', level: 3, enabled: true },
+  { id: 'p26', text: 'دع أحد أعضاء الفريق المنافس يختار لك تسريحة شعر مضحكة', level: 3, enabled: true },
+  { id: 'p27', text: 'قم بأداء إعلان ترويجي حماسي لمنتج خيالي سخيف', level: 3, enabled: true },
+  { id: 'p28', text: 'تحدث بأسلوب الشرير في أفلام الكرتون حتى نهاية اللعبة', level: 3, enabled: true },
+  { id: 'p29', text: 'اعتذر لوسادتك بحرارة وكأنك خنتها', level: 3, enabled: true },
 ]
 
 // Level and Mode meta are now dynamically localized in the component
@@ -155,119 +166,138 @@ function Confetti({ active }: { active: boolean }) {
 // ProgressRing
 // ─────────────────────────────────────────────
 function ProgressRing({ count, max, color }: { count: number; max: number; color: string }) {
-  const r = 22
+  const r = 20
   const circ = 2 * Math.PI * r
   const isMax = count === max
-  const ringColor = isMax ? '#ef4444' : count >= max - 1 ? '#f59e0b' : color
+  const { lang } = useFeedbackStore()
   return (
-    <div className="relative w-14 h-14 flex items-center justify-center flex-shrink-0">
-      <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 56 56">
-        <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3.5" />
-        <motion.circle cx="28" cy="28" r={r} fill="none" strokeWidth="3.5" strokeLinecap="round"
-          strokeDasharray={circ}
-          initial={{ strokeDashoffset: circ }}
-          animate={{ stroke: ringColor, strokeDashoffset: circ - (count / max) * circ }}
-          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        />
-      </svg>
-      <AnimatePresence>
-        {isMax && (
-          <motion.div key="pulse"
-            initial={{ opacity: 0.6, scale: 1 }} animate={{ opacity: 0, scale: 2.2 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.7 }}
-            className="absolute inset-0 rounded-full border-2 border-red-500 pointer-events-none"
+    <div className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border transition-all duration-500 shadow-xl ${isMax ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-emerald-500/50 shadow-emerald-500/20' : 'bg-white/[0.05] border-white/10 shadow-black/20'}`}>
+      <div className="relative w-11 h-11 flex items-center justify-center flex-shrink-0">
+        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 52 52">
+          <circle cx="26" cy="26" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3.5" />
+          <motion.circle cx="26" cy="26" r={r} fill="none" strokeWidth="3.5" strokeLinecap="round"
+            strokeDasharray={circ}
+            initial={{ strokeDashoffset: circ }}
+            animate={{ stroke: isMax ? '#10b981' : color, strokeDashoffset: circ - (count / max) * circ }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           />
-        )}
-      </AnimatePresence>
-      <div className="text-center leading-none z-10">
-        <motion.span key={count} initial={{ scale: 1.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-          className="text-sm font-black block" style={{ color: isMax ? '#ef4444' : 'white' }}>
-          {count}
-        </motion.span>
-        <span className="text-[8px] text-white/25 font-bold">/{max}</span>
+        </svg>
+        <AnimatePresence>
+          {isMax && (
+            <motion.div key="pulse"
+              initial={{ opacity: 0.8, scale: 1 }} animate={{ opacity: 0, scale: 2.0 }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+              className="absolute inset-0 rounded-full border border-emerald-500 pointer-events-none"
+            />
+          )}
+        </AnimatePresence>
+        <div className="text-center leading-none z-10">
+          <motion.span key={count} initial={{ scale: 1.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="text-xs font-black block" style={{ color: isMax ? '#10b981' : 'white' }}>
+            {count}
+          </motion.span>
+          <span className="text-[9px] text-white/40 font-bold">/{max}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col text-start pr-1">
+        <span className={`text-xs font-black uppercase tracking-wider transition-colors duration-300 whitespace-nowrap ${isMax ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)] font-extrabold' : 'text-white/80'}`}>
+          {isMax ? (lang === 'EN' ? 'Max Reached ✓' : 'وصلت للحد الأقصى ✓') : (lang === 'EN' ? 'Selected Categories' : 'الفئات المحددة')}
+        </span>
+        <span className="text-[10px] text-white/40 font-medium whitespace-nowrap">
+          {isMax ? (lang === 'EN' ? 'Ready for Matchup! 🚀' : 'جاهز للمباراة! 🚀') : (lang === 'EN' ? `${max - count} remaining` : `متبقي ${max - count}`)}
+        </span>
       </div>
     </div>
   )
 }
 
 // ─────────────────────────────────────────────
-// CategoryCard3D — flip on select, clean ✓ back
+// Premium Category Card (Lightning Fast, No Flip)
 // ─────────────────────────────────────────────
 function CategoryCard3D({
-  cat, topic, isSelected, isBlocked, onToggle,
+  cat, topic, isSelected, isBlocked, onToggle, isDarkMode,
 }: {
   cat: Category; topic: Topic
   isSelected: boolean; isBlocked: boolean
   onToggle: (id: string) => void
+  isDarkMode: boolean
 }) {
-  const crop = cat.crop_config?.cat_setup ?? { zoom: 1, x: 50, y: 50 }
+  const { lang } = useFeedbackStore();
+  const isRtl = lang === 'AR';
+
   return (
-    <div className="relative" style={{ aspectRatio: '4/5', perspective: 900 }}
-      onClick={() => !isBlocked && onToggle(cat.id)}>
-      <motion.div className="relative w-full h-full" style={{ transformStyle: 'preserve-3d' }}
-        animate={{ rotateY: isSelected ? 180 : 0 }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}>
+    <div 
+      onClick={() => {
+        if (!isBlocked) {
+          playSound('click');
+          onToggle(cat.id);
+        }
+      }}
+      className={`relative group cursor-pointer transition-all duration-200 select-none rounded-[2rem] ${isBlocked ? 'opacity-35 grayscale cursor-not-allowed' : ''}`}
+      style={isSelected ? { borderColor: topic.color || '#10b981', boxShadow: `0 0 45px ${(topic.color || '#10b981')}90, inset 0 0 35px ${(topic.color || '#10b981')}60` } : undefined}
+    >
+      <WobbleCard containerClassName={`p-0 ${isDarkMode ? 'bg-[#0c091f]' : 'bg-white shadow-2xl'} rounded-[2rem] overflow-hidden transition-all duration-300 ${isSelected ? 'border-[4px]' : `border-2 ${isDarkMode ? 'border-white/10 hover:border-white/30' : 'border-slate-200 hover:border-slate-400'}`}`}>
+        <div className="relative w-full h-80 md:h-96">
+          {cat.image_url ? (
+            <DirectionAwareHover imageUrl={cat.image_url} className="w-full h-full rounded-none">
+              <h4 className="text-xl font-black text-white drop-shadow-md leading-tight text-center">{cat.name}</h4>
+              {cat.description && (
+                <p className="text-xs text-white/70 mt-1.5 line-clamp-2 leading-relaxed font-medium text-center">{cat.description}</p>
+              )}
+            </DirectionAwareHover>
+          ) : (
+            <div className={`w-full h-full flex flex-col justify-end items-center p-6 text-center relative overflow-hidden ${isDarkMode ? 'bg-black/40' : 'bg-slate-100'}`} style={{ background: `linear-gradient(180deg, ${isDarkMode ? 'transparent' : 'rgba(255,255,255,0.7)'}, ${topic.color || '#8B5CF6'}${isDarkMode ? '50' : '30'})` }}>
+              <div className={`absolute inset-0 bg-gradient-to-t ${isDarkMode ? 'from-black/95 via-black/50' : 'from-white/95 via-white/50'} to-transparent`} />
+              <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full blur-3xl opacity-30" style={{ background: topic.color || '#8B5CF6' }} />
+              <h4 className={`text-xl font-black drop-shadow-md leading-tight relative z-10 text-center ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{cat.name}</h4>
+              {cat.description && (
+                <p className={`text-xs mt-1.5 line-clamp-2 leading-relaxed font-medium relative z-10 text-center ${isDarkMode ? 'text-white/70' : 'text-slate-700'}`}>{cat.description}</p>
+              )}
+            </div>
+          )}
 
-        {/* Front */}
-        <div className="absolute inset-0 rounded-[26px] overflow-hidden border-2 cursor-pointer transition-all duration-300"
-          style={{
-            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-            borderColor: isBlocked ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.09)',
-            opacity: isBlocked ? 0.25 : 1,
-            filter: isBlocked ? 'grayscale(0.65)' : 'none',
-          }}>
-          {cat.image_url
-            ? <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover" loading="eager"
-              style={{ transform: `scale(${crop.zoom ?? 1})`, objectPosition: `${crop.x ?? 50}% ${crop.y ?? 50}%` }} />
-            : <div className="w-full h-full" style={{ background: `${topic.color ?? '#8B5CF6'}20` }} />
-          }
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
-          <div className="absolute bottom-0 inset-x-0 p-4">
-            <h4 className="text-base font-black leading-tight">{cat.name}</h4>
-            {cat.description && (
-              <p className="text-[10px] text-white/35 mt-1 line-clamp-2 leading-relaxed">{cat.description}</p>
+          {isSelected && (
+            <div className="absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-white/15 pointer-events-none animate-pulse z-30" />
+          )}
+
+          {/* Fast Badge when Selected */}
+          <AnimatePresence>
+            {isSelected && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} z-50 w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-xl shadow-2xl border border-white/20`}
+                style={{ backgroundColor: topic.color || '#10b981', boxShadow: `0 0 25px ${(topic.color || '#10b981')}` }}
+              >
+                ✓
+              </motion.div>
             )}
-          </div>
-          <div className="absolute top-3 end-3 w-6 h-6 rounded-full border-2 border-white/15 bg-black/20 backdrop-blur-sm" />
+          </AnimatePresence>
         </div>
-
-        {/* Back — clean glow ✓ */}
-        <div className="absolute inset-0 rounded-[26px] overflow-hidden border-2 flex flex-col items-center justify-center gap-3 cursor-pointer"
-          style={{
-            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-            borderColor: topic.color ?? '#8B5CF6',
-            background: `${topic.color ?? '#8B5CF6'}14`,
-            boxShadow: `0 0 45px ${topic.color ?? '#8B5CF6'}35, inset 0 0 60px ${topic.color ?? '#8B5CF6'}10`,
-          }}>
-          {/* Glow orb */}
-          <div className="absolute inset-0 rounded-[24px] opacity-25"
-            style={{ background: `radial-gradient(circle at 50% 45%, ${topic.color ?? '#8B5CF6'} 0%, transparent 65%)` }} />
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-            transition={{ delay: 0.22, type: 'spring', stiffness: 320 }}
-            className="w-16 h-16 rounded-full flex items-center justify-center text-2xl shadow-2xl relative z-10"
-            style={{
-              background: topic.color ?? '#8B5CF6',
-              boxShadow: `0 0 30px ${topic.color ?? '#8B5CF6'}80`,
-            }}>
-            ✓
-          </motion.div>
-          <p className="text-xs font-black text-white/70 relative z-10 px-4 text-center leading-tight">
-            {cat.name}
-          </p>
-        </div>
-      </motion.div>
+      </WobbleCard>
     </div>
   )
 }
 
 // ─────────────────────────────────────────────
-// SpaceCanvas — full physics, pure canvas
-// No external particles lib needed
+// SpaceBackground / Cinematic Holographic Space (Option 1)
 // ─────────────────────────────────────────────
-function SpaceCanvas({ teams = [] }: { teams?: Team[] }) {
+function SpaceBackground({ teams = [], accentColor = '#8B5CF6' }: { teams?: Team[]; accentColor?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const timeRef = useRef(0)
+  const { themeMode } = useFeedbackStore()
+  const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && (typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true))
+  const mouseRef = useRef({ x: 0, y: 0 })
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY }
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -276,246 +306,152 @@ function SpaceCanvas({ teams = [] }: { teams?: Team[] }) {
     if (!ctx) return
 
     let rafId: number
-    const particles: any[] = []
+    const particles: Array<{ x: number; y: number; r: number; vx: number; vy: number; color: string; alpha: number; pulseSpeed: number; phase: number; layer: number }> = []
+    const shootingStars: Array<{ x: number; y: number; len: number; vx: number; vy: number; alpha: number; active: boolean }> = []
 
     const resize = () => {
       canvas.width = window.innerWidth
       canvas.height = window.innerHeight
       particles.length = 0
-      for (let i = 0; i < 120; i++) {
+      const colors = [accentColor, '#9333EA', '#06B6D4', '#F43F5E', '#10B981', '#F59E0B', '#FFFFFF', '#D946EF']
+      // 250 multi-layered particles
+      for (let i = 0; i < 250; i++) {
+        const layer = Math.random() < 0.5 ? 1 : Math.random() < 0.8 ? 2 : 3
         particles.push({
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
-          z: Math.random() * 2 + 0.1,
-          size: Math.random() * 2 + 0.5,
-          color: teams.length ? teams[Math.floor(Math.random() * teams.length)]?.color : '#8B5CF6',
-          vx: (Math.random() - 0.5) * 0.15,
-          vy: (Math.random() - 0.5) * 0.15,
-          phase: Math.random() * Math.PI * 2
+          r: (Math.random() * 2 + 0.5) * layer * 0.7,
+          vx: (Math.random() - 0.5) * 0.15 * layer,
+          vy: (Math.random() - 0.5) * 0.15 * layer,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: Math.random() * 0.7 + 0.3,
+          pulseSpeed: Math.random() * 0.04 + 0.01,
+          phase: Math.random() * Math.PI * 2,
+          layer
         })
+      }
+      shootingStars.length = 0
+      for (let i = 0; i < 3; i++) {
+        shootingStars.push({ x: 0, y: 0, len: 0, vx: 0, vy: 0, alpha: 0, active: false })
       }
     }
 
     window.addEventListener('resize', resize)
     resize()
 
+    let angle = 0
     const draw = () => {
       const w = canvas.width
       const h = canvas.height
-      timeRef.current += 0.005
+      ctx.clearRect(0, 0, w, h)
+      angle += 0.002
 
-      ctx.fillStyle = '#050510'
+      // 1. Dual Glowing Nebula Blobs
+      const cx = w * 0.5
+      const cy = h * 0.5
+      const grad1 = ctx.createRadialGradient(cx + Math.sin(angle) * 250, cy + Math.cos(angle) * 180, 0, cx, cy, Math.max(w, h) * 0.65)
+      grad1.addColorStop(0, `${accentColor}28`)
+      grad1.addColorStop(1, 'transparent')
+      ctx.fillStyle = grad1
       ctx.fillRect(0, 0, w, h)
 
-      teams.forEach((t, i) => {
-        if (!t?.color) return
-        const cx = w * (0.2 + (i % 2) * 0.6) + Math.sin(timeRef.current + i) * 120
-        const cy = h * (0.2 + (i < 2 ? 0 : 0.6)) + Math.cos(timeRef.current + i) * 120
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.5)
-        grad.addColorStop(0, `${t.color}18`)
-        grad.addColorStop(1, 'transparent')
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, w, h)
+      const grad2 = ctx.createRadialGradient(cx - Math.cos(angle * 0.8) * 300, cy - Math.sin(angle * 0.8) * 220, 0, cx, cy, Math.max(w, h) * 0.7)
+      grad2.addColorStop(0, '#9333EA20')
+      grad2.addColorStop(1, 'transparent')
+      ctx.fillStyle = grad2
+      ctx.fillRect(0, 0, w, h)
+
+      // 2. Holographic Orbital Rings
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(angle * 0.4)
+      ctx.beginPath()
+      ctx.ellipse(0, 0, Math.min(w, h) * 0.42, Math.min(w, h) * 0.22, Math.PI / 5, 0, Math.PI * 2)
+      ctx.strokeStyle = `${accentColor}22`
+      ctx.lineWidth = 2.5
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.ellipse(0, 0, Math.min(w, h) * 0.58, Math.min(w, h) * 0.19, -Math.PI / 3.5, 0, Math.PI * 2)
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.restore()
+
+      // 3. Shooting Stars
+      shootingStars.forEach(s => {
+        if (!s.active && Math.random() < 0.008) {
+          s.active = true
+          s.x = Math.random() * w
+          s.y = 0
+          s.vx = Math.random() * 8 + 8
+          s.vy = s.vx * 0.6
+          s.len = Math.random() * 80 + 60
+          s.alpha = 1
+        }
+        if (s.active) {
+          s.x += s.vx
+          s.y += s.vy
+          s.alpha -= 0.015
+          if (s.alpha <= 0 || s.x > w || s.y > h) {
+            s.active = false
+          } else {
+            ctx.save()
+            ctx.beginPath()
+            ctx.moveTo(s.x, s.y)
+            ctx.lineTo(s.x - s.vx * (s.len / 10), s.y - s.vy * (s.len / 10))
+            const sGrad = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * (s.len / 10), s.y - s.vy * (s.len / 10))
+            sGrad.addColorStop(0, `rgba(255,255,255,${s.alpha})`)
+            sGrad.addColorStop(1, 'transparent')
+            ctx.strokeStyle = sGrad
+            ctx.lineWidth = 2.5
+            ctx.stroke()
+            ctx.restore()
+          }
+        }
       })
 
+      // 4. Interactive Stardust particles
+      const mx = mouseRef.current.x
+      const my = mouseRef.current.y
+
       particles.forEach(p => {
-        p.x += p.vx
-        p.y += p.vy - (p.z * 0.1)
+        const dx = mx - p.x
+        const dy = my - p.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist > 0 && dist < 250) {
+          p.x += (dx / dist) * 0.5 * p.layer
+          p.y += (dy / dist) * 0.5 * p.layer
+        } else {
+          p.x += p.vx
+          p.y += p.vy
+        }
+
         if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
         if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
 
-        const pulse = 0.5 + 0.5 * Math.sin(timeRef.current * 4 + p.phase)
+        p.phase += p.pulseSpeed
+        const currentAlpha = p.alpha * (0.5 + 0.5 * Math.sin(p.phase))
+
         ctx.beginPath()
-        ctx.arc(p.x, p.y, p.size * (1 + pulse), 0, Math.PI * 2)
-        ctx.fillStyle = p.color ? `${p.color}${Math.floor((0.3 + pulse * 0.7) * 255).toString(16).padStart(2, '0')}` : '#ffffff80'
-        ctx.shadowBlur = 15
-        ctx.shadowColor = p.color || '#fff'
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = p.color + Math.floor(currentAlpha * 255).toString(16).padStart(2, '0')
+        ctx.shadowBlur = p.layer === 3 ? 15 : 0
+        ctx.shadowColor = p.color
         ctx.fill()
+        ctx.shadowBlur = 0
       })
 
       rafId = requestAnimationFrame(draw)
     }
     draw()
     return () => { cancelAnimationFrame(rafId); window.removeEventListener('resize', resize) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teams?.map(t => t.color).join(',') || ''])
+  }, [accentColor])
 
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-}
-
-function spawnAsteroid(
-  id: number, w: number, h: number, teams: Team[],
-  nextIdRef: React.MutableRefObject<number>,
-  isFragment = false, x = 0, y = 0, vx = 0, vy = 0, r = 0, color = '',
-): AsteroidBody {
-  if (!isFragment) {
-    const edge = id % 4
-    const frac = ((id * 73) % 80 + 10) / 100
-    let sx = 0, sy = 0
-    if (edge === 0) { sx = frac * w; sy = -55 }
-    else if (edge === 1) { sx = w + 55; sy = frac * h }
-    else if (edge === 2) { sx = frac * w; sy = h + 55 }
-    else { sx = -55; sy = frac * h }
-    const cx = w * 0.38 + (id % 5) * w * 0.06
-    const cy = h * 0.38 + (id % 3) * h * 0.12
-    const dx = cx - sx, dy = cy - sy
-    const len = Math.sqrt(dx * dx + dy * dy) || 1
-    const spd = 0.32 + (id % 4) * 0.14
-    return {
-      id, x: sx, y: sy,
-      vx: dx / len * spd, vy: dy / len * spd,
-      r: 22 + (id % 4) * 10,
-      color: teams[id % Math.max(teams.length, 1)]?.color ?? '#8B5CF6',
-      ptSet: id % 4, rotation: 0,
-      rotSpeed: ((id % 7) - 3) * 0.0055,
-      isFragment: false, flashTimer: 0,
-      cooldown: id * 18,
-    }
-  }
-  return {
-    id: nextIdRef.current++,
-    x, y, vx, vy,
-    r: Math.max(r, 5),
-    color,
-    ptSet: Math.floor(Math.random() * 4),
-    rotation: Math.random() * Math.PI * 2,
-    rotSpeed: (Math.random() - 0.5) * 0.06,
-    isFragment: true, flashTimer: 10, cooldown: 45,
-  }
-}
-
-function stepPhysics(
-  asts: AsteroidBody[], w: number, h: number,
-  teams: Team[], nextIdRef: React.MutableRefObject<number>,
-) {
-  const newFrags: AsteroidBody[] = []
-  const removeSet = new Set<number>()
-
-  for (const a of asts) {
-    a.x += a.vx; a.y += a.vy
-    a.rotation += a.rotSpeed
-    if (a.flashTimer > 0) a.flashTimer--
-    if (a.cooldown > 0) a.cooldown--
-    if (a.r < 4) { removeSet.add(a.id); continue }
-    const mg = a.r + 85
-    if (a.x < -mg || a.x > w + mg || a.y < -mg || a.y > h + mg) {
-      if (a.isFragment) { removeSet.add(a.id); continue }
-      // Respawn
-      const edge = Math.floor(Math.random() * 4)
-      const fr = 0.15 + Math.random() * 0.7
-      if (edge === 0) { a.x = fr * w; a.y = -mg / 2 }
-      else if (edge === 1) { a.x = w + mg / 2; a.y = fr * h }
-      else if (edge === 2) { a.x = fr * w; a.y = h + mg / 2 }
-      else { a.x = -mg / 2; a.y = fr * h }
-      const cx = w * 0.35 + Math.random() * w * 0.3
-      const cy = h * 0.35 + Math.random() * h * 0.3
-      const dx = cx - a.x, dy = cy - a.y, len = Math.sqrt(dx * dx + dy * dy) || 1
-      const spd = 0.28 + Math.random() * 0.5
-      a.vx = dx / len * spd; a.vy = dy / len * spd
-      a.r = 22 + Math.floor(Math.random() * 4) * 9
-      a.color = teams[Math.floor(Math.random() * teams.length)]?.color ?? a.color
-      a.cooldown = 90
-    }
-  }
-
-  const active = asts.filter(a => !removeSet.has(a.id))
-
-  // Collision detection
-  for (let i = 0; i < active.length; i++) {
-    for (let j = i + 1; j < active.length; j++) {
-      const a = active[i], b = active[j]
-      if (removeSet.has(a.id) || removeSet.has(b.id)) continue
-      if (a.cooldown > 0 || b.cooldown > 0) continue
-      const dx = b.x - a.x, dy = b.y - a.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      if (dist === 0 || dist >= a.r + b.r) continue
-      const nx = dx / dist, ny = dy / dist
-
-      if (a.r > 18 || b.r > 18) {
-        // Large → shatter bigger into fragments
-        const big = a.r >= b.r ? a : b
-        const small = a.r < b.r ? a : b
-        removeSet.add(big.id)
-        const nf = 3 + Math.floor(Math.random() * 3)
-        for (let f = 0; f < nf; f++) {
-          const ang = (f / nf) * Math.PI * 2 + Math.random() * 0.8
-          const spd = 0.85 + Math.random() * 1.6
-          const fr = big.r * (0.18 + Math.random() * 0.26)
-          newFrags.push(spawnAsteroid(
-            0, w, h, teams, nextIdRef, true,
-            big.x + Math.cos(ang) * big.r * 0.4,
-            big.y + Math.sin(ang) * big.r * 0.4,
-            Math.cos(ang) * spd + big.vx * 0.22,
-            Math.sin(ang) * spd + big.vy * 0.22,
-            fr, big.color,
-          ))
-        }
-        // Small bounces
-        const relV = (small.vx - big.vx) * nx + (small.vy - big.vy) * ny
-        if (relV < 0) { small.vx -= 1.35 * relV * nx; small.vy -= 1.35 * relV * ny }
-        small.r = Math.max(small.r * 0.82, 5)
-        small.flashTimer = 8; small.cooldown = 55
-      } else {
-        // Small-small: elastic bounce + shrink
-        const relV = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
-        if (relV < 0) {
-          const imp = relV * 0.88
-          a.vx += imp * nx; a.vy += imp * ny
-          b.vx -= imp * nx; b.vy -= imp * ny
-        }
-        a.r = Math.max(a.r * 0.88, 4); b.r = Math.max(b.r * 0.88, 4)
-        a.flashTimer = 6; b.flashTimer = 6
-        a.cooldown = 32; b.cooldown = 32
-      }
-    }
-  }
-
-  // Rebuild array
-  asts.splice(0, asts.length, ...active.filter(a => !removeSet.has(a.id)))
-  const slots = 22 - asts.length
-  for (let i = 0; i < Math.min(newFrags.length, slots); i++) asts.push(newFrags[i])
-}
-
-function drawAsteroid(ctx: CanvasRenderingContext2D, ast: AsteroidBody) {
-  const pts = AST_PTS[ast.ptSet]
-  const sc = ast.r / 45
-  ctx.save()
-  ctx.translate(ast.x, ast.y)
-  ctx.rotate(ast.rotation)
-  if (ast.flashTimer > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.88)'
-    ctx.shadowColor = 'white'
-    ctx.shadowBlur = 22
-  } else {
-    ctx.fillStyle = ast.color + '96'
-    ctx.shadowColor = ast.color
-    ctx.shadowBlur = 10
-  }
-  ctx.beginPath()
-  ctx.moveTo(pts[0][0] * sc, pts[0][1] * sc)
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] * sc, pts[i][1] * sc)
-  ctx.closePath()
-  ctx.fill()
-  if (!ast.flashTimer && ast.r > 10) {
-    ctx.shadowBlur = 0
-    ctx.fillStyle = 'rgba(0,0,0,0.28)'
-    ctx.beginPath(); ctx.arc(-8 * sc, -9 * sc, 4 * sc, 0, Math.PI * 2); ctx.fill()
-    ctx.beginPath(); ctx.arc(10 * sc, 12 * sc, 2.5 * sc, 0, Math.PI * 2); ctx.fill()
-    if (ast.r > 24) {
-      ctx.fillStyle = 'rgba(255,255,255,0.055)'
-      ctx.beginPath(); ctx.arc(-2 * sc, 18 * sc, 3 * sc, 0, Math.PI * 2); ctx.fill()
-    }
-  }
-  ctx.restore()
-}
-
-// ─────────────────────────────────────────────
-// SpaceBackground — canvas + nebula (no FightingParticles)
-// ─────────────────────────────────────────────
-function SpaceBackground({ teams = [] }: { teams?: Team[] }) {
   return (
-    <div className="absolute inset-0 overflow-hidden">
-      <SpaceCanvas teams={teams} />
+    <div className={`absolute inset-0 overflow-hidden pointer-events-none transition-colors duration-1000 ${isDarkMode ? 'bg-[#05030A]' : 'bg-slate-950'}`}>
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
     </div>
   )
 }
@@ -534,61 +470,88 @@ function MatchupPreview({
   isStarting: boolean
 }) {
   const t = useTranslator()
+  const { lang } = useFeedbackStore()
+
   useEffect(() => {
     teams.forEach((_, i) => {
-      setTimeout(() => playMascotSound(i, voicesEnabled), i * 350 + 200)
+      playMascotSound(i, voicesEnabled)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const gridCols = teams.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : teams.length === 3 ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2';
+
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full py-10 px-4">
-      <motion.h2 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-3xl font-black mb-12 tracking-widest text-white/90 drop-shadow-xl text-center">
-        {t('setup_step_final') === 'Final Step' ? 'CONTENDERS' : 'المنافسون'}
-      </motion.h2>
-      <div className="flex flex-wrap justify-center gap-12 md:gap-20 w-full">
-        {teams.map((team, idx) => (
-          <motion.div key={idx} initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: idx * 0.15, type: 'spring', stiffness: 220 }}
-            className="flex flex-col items-center gap-5 relative group">
-            <motion.div animate={{ y: [0, -12, 0] }} transition={{ duration: 2.2 + idx * 0.3, repeat: Infinity, ease: 'easeInOut' }}
-              className="relative">
-              <div className="absolute -inset-6 rounded-full opacity-0 group-hover:opacity-30 transition-opacity blur-2xl" style={{ background: team.color }} />
-              <Mascot state="idle" size={100} color={team.color} />
-            </motion.div>
-            <div className="flex flex-col items-center gap-2">
-              <span className="font-black text-xl text-white tracking-wide">{team.name}</span>
-              <div className="w-10 h-1.5 rounded-full" style={{ background: team.color, boxShadow: `0 0 15px ${team.color}90` }} />
-            </div>
-          </motion.div>
-        ))}
+    <div className="flex flex-col items-center justify-center w-full min-h-[500px] py-6 px-4 relative select-none overflow-hidden max-w-7xl mx-auto">
+      
+      {/* Background ambient lighting */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
+        <div className="w-[70vw] h-[35vw] max-h-[400px] rounded-full bg-gradient-to-r from-purple-500/10 via-rose-500/10 to-amber-500/10 blur-[120px]" />
       </div>
 
-      {teams.length % 2 !== 0 && (
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-          className="flex flex-col items-center gap-2">
-          <Mascot state="idle" size={60} color={teams[teams.length - 1].color} />
-          <span className="text-xs font-black text-white/40">{teams[teams.length - 1].name}</span>
-        </motion.div>
-      )}
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="text-center mb-8 relative z-10">
+        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black tracking-widest uppercase mb-2 shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+          {lang === 'EN' ? 'THE ARENA IS SET' : 'الساحة جاهزة للتحدي'}
+        </span>
+        <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.3)]">
+          {lang === 'EN' ? 'ULTIMATE SHOWDOWN' : 'المواجهة الكبرى'}
+        </h2>
+      </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.55 }} className="flex gap-4 mt-2">
+      {/* Arena Showdown Display */}
+      <div className="relative w-full max-w-5xl mb-10 z-10 px-2">
+        <div className={`grid ${gridCols} gap-5 md:gap-6 relative z-10 items-stretch`}>
+          {teams.map((team, idx) => (
+            <motion.div key={idx}
+              initial={{ y: 30, opacity: 0, scale: 0.92 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.12, type: 'spring', stiffness: 250, damping: 22 }}
+              className="flex flex-col items-center justify-between p-5 md:p-6 rounded-3xl bg-white/[0.03] border border-white/10 hover:border-white/25 hover:bg-white/[0.06] transition-all duration-300 relative group shadow-2xl backdrop-blur-xl">
+              
+              {/* Ambient team glow */}
+              <div className="absolute inset-0 rounded-3xl opacity-15 group-hover:opacity-35 transition-opacity duration-500 blur-xl -z-10" style={{ background: team.color }} />
+
+              <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3 + idx * 0.2, repeat: Infinity, ease: 'easeInOut' }}
+                className="relative my-2">
+                <Mascot state="hype" size={90} color={team.color} />
+              </motion.div>
+
+              <div className="flex flex-col items-center gap-2 w-full mt-3">
+                <span className="font-black text-xl md:text-2xl text-white tracking-wide truncate max-w-full px-2" style={{ textShadow: `0 0 15px ${team.color}80` }}>
+                  {team.name}
+                </span>
+                <div className="w-10 h-1 rounded-full my-0.5" style={{ background: team.color, boxShadow: `0 0 12px ${team.color}` }} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/50 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+                  {lang === 'EN' ? 'READY ✓' : 'جاهز للمنافسة ✓'}
+                </span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+      </div>
+
+      {/* Action Buttons */}
+      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="flex flex-wrap items-center justify-center gap-4 w-full relative z-10 pt-2">
         <button onClick={onBack}
-          className="px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white/40
-            hover:text-white hover:bg-white/10 transition-all font-bold text-sm">
-          ← تعديل
+          className="px-8 py-4 rounded-2xl bg-white/[0.04] border border-white/10 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/25 transition-all font-bold text-sm shadow-lg flex items-center gap-2 cursor-pointer">
+          <span>{lang === 'EN' ? '← Edit Contenders' : '← تعديل الفرق'}</span>
         </button>
+
         <motion.button onClick={onConfirm} disabled={isStarting}
-          whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-          className="group relative px-12 py-3 rounded-2xl overflow-hidden bg-white font-black
-            text-black uppercase tracking-[0.2em] text-sm disabled:opacity-50 disabled:pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/10 to-transparent
-            -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-          {isStarting
-            ? <span className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin block" />
-            : <span className="relative">{t('setup_launch')} 🚀</span>
-          }
+          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+          className="btn-aurora btn-aurora-sunset px-12 py-4 rounded-2xl font-black text-white uppercase tracking-[0.2em] text-sm disabled:opacity-50 shadow-[0_0_35px_rgba(245,158,11,0.4)] flex items-center gap-3 cursor-pointer">
+          {isStarting ? (
+            <div className="flex items-center gap-3">
+              <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin block" />
+              <span>{lang === 'EN' ? 'LAUNCHING SAGA...' : 'جاري إطلاق المباراة...'}</span>
+            </div>
+          ) : (
+            <span className="relative flex items-center gap-2">
+              <span>{lang === 'EN' ? 'LAUNCH MATCHUP 🚀' : 'انطلاق التحدي المثير! 🚀'}</span>
+            </span>
+          )}
         </motion.button>
       </motion.div>
     </div>
@@ -604,7 +567,7 @@ function GeneratingScreen({ teams = [], accentColor = '#8B5CF6' }: { teams?: Tea
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden">
-      <SpaceBackground teams={teams} />
+      <SpaceBackground teams={teams} accentColor={accentColor} />
       <div className="relative z-10 flex flex-col items-center gap-10">
         <div className="relative w-64 h-28">
           {cards.map((c, i) => (
@@ -652,9 +615,9 @@ function PunishmentConfig({
   mode: PunishmentMode; setMode: (m: PunishmentMode) => void
 }) {
   const t = useTranslator()
+  const { lang } = useFeedbackStore()
   const [newText, setNewText] = useState('')
   const [newLevel, setNewLevel] = useState<1 | 2 | 3>(1)
-  const [open, setOpen] = useState(false)
 
   const addPunishment = () => {
     if (!newText.trim()) return
@@ -668,133 +631,93 @@ function PunishmentConfig({
   const removeItem = (id: string) =>
     setPunishments(p => p.filter(x => x.id !== id))
 
+  if (!enabled) return null
+
   return (
-    <div className="border border-white/[0.06] rounded-3xl overflow-hidden">
-      {/* Header toggle */}
-      <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-all">
-        <div className="flex items-center gap-3">
-          <span className="text-xl">🔴</span>
-          <div className="text-start">
-            <p className="text-sm font-black text-white/80">{t('setup_punishments')}</p>
-            <p className="text-[10px] text-white/30 font-medium">
-              {enabled ? `${punishments.filter(p => p.enabled).length} ${t('setup_punish_enabled')}` : t('setup_punish_disabled')}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* On/off toggle */}
-          <div onClick={e => { e.stopPropagation(); setEnabled(!enabled) }}
-            className="relative w-11 h-6 rounded-full cursor-pointer transition-all duration-300"
-            style={{ background: enabled ? '#22c55e' : 'rgba(255,255,255,0.1)' }}>
-            <motion.div animate={{ x: enabled ? 20 : 2 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="absolute top-1 w-4 h-4 rounded-full bg-white shadow-md" />
-          </div>
-          <motion.span animate={{ rotate: open ? 180 : 0 }} className="text-white/25 text-xs">▼</motion.span>
-        </div>
-      </button>
-
-      <AnimatePresence>
-        {open && enabled && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }}
-            className="overflow-hidden">
-            <div className="px-5 pb-5 space-y-4">
-
-              {/* Mode selector */}
+    <div className="space-y-3 py-0.5">
+      {/* Mode selector */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1.5 text-start">{lang === 'EN' ? 'PUNISHMENT MECHANIC' : 'آلية اختيار العقوبة'}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {([
+            { key: 'wheel', icon: '🎡' },
+            { key: 'voted', icon: '🗳' },
+            { key: 'escalating', icon: '📈' },
+            { key: 'mixed', icon: '🎲' },
+          ] as const).map(({ key, icon }) => (
+            <button key={key} onClick={() => setMode(key as any)}
+              className={`flex items-center gap-3 p-2.5 rounded-2xl border text-start transition-all cursor-pointer ${mode === key ? 'bg-white/[0.08] border-purple-500/50 shadow-md scale-[1.01]' : 'bg-white/[0.02] border-white/10 hover:bg-white/[0.05]'}`}>
+              <span className="text-xl flex-shrink-0">{icon}</span>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-2">نوع العقوبة</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { key: 'wheel', icon: '🎡' },
-                    { key: 'voted', icon: '🗳' },
-                    { key: 'escalating', icon: '📈' },
-                    { key: 'mixed', icon: '🎲' },
-                  ] as const).map(({ key, icon }) => (
-                    <button key={key} onClick={() => setMode(key as any)}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-2xl border text-start transition-all"
-                      style={{
-                        borderColor: mode === key ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
-                        background: mode === key ? 'rgba(255,255,255,0.08)' : 'transparent',
-                      }}>
-                      <span className="text-lg">{icon}</span>
-                      <div>
-                        <p className="text-xs font-black text-white/80 leading-tight">{t(`setup_mode_${key}` as any)}</p>
-                        <p className="text-[9px] text-white/30 leading-tight">{t(`setup_mode_${key}_desc` as any)}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <p className="text-xs font-black text-white leading-tight mb-0.5">{t(`setup_mode_${key}` as any)}</p>
+                <p className="text-[10px] text-white/50 leading-none">{t(`setup_mode_${key}_desc` as any)}</p>
               </div>
-              {/* Punishment list */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-2">قائمة العقوبات</p>
-                <div className="space-y-1 max-h-28 overflow-y-auto no-scrollbar">
-                  {punishments.map(p => {
-                    const lm = {
-                      1: { color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-                      2: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-                      3: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-                    }[p.level as 1 | 2 | 3]
-                    return (
-                      <motion.div key={p.id} layout
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl group"
-                        style={{ background: p.enabled ? 'rgba(255,255,255,0.03)' : 'transparent', opacity: p.enabled ? 1 : 0.35 }}>
-                        <button onClick={() => toggleItem(p.id)}
-                          className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all"
-                          style={{ borderColor: p.enabled ? lm.color : 'rgba(255,255,255,0.12)', background: p.enabled ? lm.bg : 'transparent' }}>
-                          {p.enabled && <span className="text-[8px]" style={{ color: lm.color }}>✓</span>}
-                        </button>
-                        <span className="flex-1 text-xs text-white/65 truncate">{p.text}</span>
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0"
-                          style={{ color: lm.color, background: lm.bg }}>
-                          {t(`setup_level_${p.level === 1 ? 'easy' : p.level === 2 ? 'medium' : 'hard'}` as any)}
-                        </span>
-                        <button onClick={() => removeItem(p.id)}
-                          className="text-white/15 hover:text-red-400 transition-colors text-xs opacity-0 group-hover:opacity-100">✕</button>
-                      </motion.div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Add custom */}
-              <div className="flex gap-2">
-                <input value={newText} onChange={e => setNewText(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addPunishment()}
-                  placeholder="أضف عقوبة مخصصة…"
-                  className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2
-                    text-xs outline-none focus:border-white/20 transition-all placeholder:text-white/20" />
-                <div className="flex gap-1">
-                  {([1, 2, 3] as const).map(l => {
-                    const lm = {
-                      1: { color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-                      2: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-                      3: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-                    }[l]
-                    return (
-                      <button key={l} onClick={() => setNewLevel(l)}
-                        className="w-8 h-8 rounded-xl text-[10px] font-black transition-all border flex-shrink-0"
-                        style={{
-                          borderColor: newLevel === l ? lm.color : 'rgba(255,255,255,0.06)',
-                          background: newLevel === l ? lm.bg : 'transparent',
-                          color: newLevel === l ? lm.color : 'rgba(255,255,255,0.25)',
-                        }}>
-                        {l}
-                      </button>
-                    )
-                  })}
-                </div>
-                <button onClick={addPunishment}
-                  className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center
-                    justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all text-sm flex-shrink-0">
-                  +
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Punishment list */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1.5 text-start">{lang === 'EN' ? 'ACTIVE PUNISHMENTS' : 'قائمة العقوبات الفعالة'}</p>
+        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 pl-1 no-scrollbar">
+          {punishments.map(p => {
+            const lm = {
+              1: { color: '#22c55e', bg: 'rgba(34,197,94,0.15)', name: lang === 'EN' ? 'Easy' : 'سهل' },
+              2: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', name: lang === 'EN' ? 'Med' : 'متوسط' },
+              3: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)', name: lang === 'EN' ? 'Hard' : 'حماسي' },
+            }[p.level as 1 | 2 | 3]
+            return (
+              <motion.div key={p.id} layout
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all duration-300 ${p.enabled ? 'bg-white/[0.04] border-white/15 shadow-sm' : 'bg-transparent border-white/5 opacity-40'}`}>
+                <button onClick={() => toggleItem(p.id)} title={lang === 'EN' ? 'Toggle' : 'تفعيل / تعطيل'}
+                  className={`w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border transition-transform duration-300 hover:scale-110 cursor-pointer ${p.enabled ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 font-bold text-xs' : 'border-white/20 bg-white/5 text-transparent text-xs'}`}>
+                  ✓
                 </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <span className="flex-1 text-xs font-semibold text-white truncate text-start">{lang === 'EN' ? translatePunishment(p.text) : p.text}</span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 border leading-none"
+                  style={{ color: lm.color, background: lm.bg, borderColor: `${lm.color}40` }}>
+                  {lm.name}
+                </span>
+                <button onClick={() => removeItem(p.id)} title={lang === 'EN' ? 'Delete' : 'حذف'}
+                  className="w-6 h-6 rounded-full bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 text-red-400 hover:text-red-300 transition-all flex items-center justify-center text-xs font-black cursor-pointer shadow-sm">✕</button>
+              </motion.div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Add custom */}
+      <div className="flex flex-col sm:flex-row gap-2.5 pt-1.5 items-stretch sm:items-center">
+        <input value={newText} onChange={e => setNewText(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addPunishment()}
+          placeholder={lang === 'EN' ? 'Add custom punishment...' : 'أضف عقوبة مخصصة…'}
+          className="flex-1 bg-white/[0.05] border border-white/15 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-amber-500/50 focus:bg-white/[0.08] transition-all placeholder:text-white/30 text-white shadow-inner text-start" />
+        <div className="flex items-center justify-center gap-1.5 bg-white/[0.03] border border-white/10 p-1.5 rounded-xl flex-wrap sm:flex-nowrap">
+          {([1, 2, 3] as const).map(l => {
+            const lm = {
+              1: { color: '#22c55e', bg: 'rgba(34,197,94,0.15)', label: lang === 'EN' ? 'Easy ⚡' : 'سهل ⚡' },
+              2: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', label: lang === 'EN' ? 'Med 🔥' : 'متوسط 🔥' },
+              3: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)', label: lang === 'EN' ? 'Hard 💥' : 'حماسي 💥' },
+            }[l]
+            return (
+              <button key={l} onClick={() => setNewLevel(l)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition-all border flex items-center gap-1 cursor-pointer flex-shrink-0 leading-none ${newLevel === l ? 'scale-105 shadow-md' : 'opacity-40 hover:opacity-80'}`}
+                style={{
+                  borderColor: newLevel === l ? lm.color : 'rgba(255,255,255,0.08)',
+                  background: newLevel === l ? lm.bg : 'transparent',
+                  color: newLevel === l ? lm.color : 'rgba(255,255,255,0.3)',
+                  boxShadow: newLevel === l ? `0 0 12px ${lm.color}40` : 'none',
+                }}>
+                <span>{lm.label}</span>
+              </button>
+            )
+          })}
+        </div>
+        <button onClick={addPunishment} title={lang === 'EN' ? 'Add' : 'إضافة'}
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 font-black text-white hover:brightness-110 transition-all text-xs uppercase tracking-wider flex items-center justify-center shadow-md cursor-pointer flex-shrink-0">
+          {lang === 'EN' ? '+ Add' : '+ إضافة'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -820,182 +743,519 @@ function TeamsModal({
   const t = useTranslator()
   const { lang } = useFeedbackStore()
   const router = useRouter()
-  const [step, setStep] = useState<0 | 1>(0)
+  const [step, setStep] = useState<'setup' | 'punishments' | 'matchup'>('setup')
 
   const updateName = (i: number, name: string) => setTeams(p => p.map((t, j) => j === i ? { ...t, name } : t))
   const updateColor = (i: number, color: string) => setTeams(p => p.map((t, j) => j === i ? { ...t, color } : t))
   const removeTeam = (i: number) => setTeams(p => p.filter((_, j) => j !== i))
 
-  const FUNNY_NAMES_AR = ["صائدو الجوائز", "عقول خطرة", "فرقة الإعدام", "سادة الفوضى", "النيزك القادم", "أسطورة الشاشة", "خوارزميات النصر", "ملوك الدراما", "نادي المكتئبين", "كتيبة الذكاء"]
-  const FUNNY_NAMES_EN = ["Bounty Hunters", "Dangerous Minds", "Chaos Lords", "Incoming Meteor", "Screen Legends", "Victory Algorithms", "Drama Kings", "Depressed Club", "The Smart Squad", "Trivia Assassins"]
+  const FUNNY_NAMES_AR = [
+    "صائدو الجوائز", "عقول خطرة", "فرقة الإعدام", "سادة الفوضى", "النيزك القادم", "أسطورة الشاشة", "خوارزميات النصر", "ملوك الدراما", "نادي المكتئبين", "كتيبة الذكاء",
+    "أساطير العصر", "فرقة المهمات المستحيلة", "أصحاب الكاريزما", "دكاترة التفكير", "عقول لا تنام", "ملوك الريمونتادا", "الضربة القاضية", "محترفو التخمين", "أشباح الليل", "عباقرة بالصدفة",
+    "فلاسفة الكنبة", "فريق الأحلام", "وحوش التحدي", "قراصنة المعلومات", "أبطال الديجيتال", "المتألقون دائماً", "صناع التاريخ", "أباطرة الحكمة", "رواد المستقبل", "شعلة النشاط",
+    "الرقم الصعب", "لا نستسلم أبداً", "أسياد اللعبة", "صيادو النقاط", "طاقة إيجابية", "السادة النبلاء", "عاصفة الأفكار", "فرسان الطاولة", "الخطة الجهنمية", "مخترقو الأنظمة",
+    "ملوك الاستراتيجية", "الذكاء الخارق", "أصحاب المزاج", "فيلق النصر", "المرشحون للقب", "أصدقاء العمر", "المغامرون", "صوت العقل", "المحاربون القدامى", "كوكب المبدعين", "الجيل الذهبي"
+  ]
+  const FUNNY_NAMES_EN = [
+    "Bounty Hunters", "Dangerous Minds", "Chaos Lords", "Incoming Meteor", "Screen Legends", "Victory Algorithms", "Drama Kings", "Depressed Club", "The Smart Squad", "Trivia Assassins",
+    "Legends of the Era", "Mission Impossible", "Charisma Club", "Doctors of Thought", "Sleepless Minds", "Comeback Kings", "Knockout Punch", "Guesswork Masters", "Night Ghosts", "Accidental Geniuses",
+    "Couch Philosophers", "The Dream Team", "Challenge Monsters", "Data Pirates", "Digital Heroes", "Always Shining", "History Makers", "Emperors of Wisdom", "Pioneers of Future", "Flame of Energy",
+    "The Hard Equation", "Never Surrender", "Masters of the Game", "Point Hunters", "Positive Energy", "The Noble Gentlemen", "Brainstormers", "Knights of the Table", "Master Plan", "System Hackers",
+    "Strategy Kings", "Super Intelligence", "Mood Swings", "Legion of Victory", "Title Favorites", "Lifelong Friends", "The Adventurers", "Voice of Reason", "Veteran Warriors", "Planet of Creators", "Golden Generation"
+  ]
+  const SESSION_NAMES_AR = ["تحدي الأساطير الكبير", "سهرة العباقرة", "معركة الذكاء الخارق", "كأس المعرفة الذهبي", "ليلة التحدي والحماس", "صراع الجبابرة", "المواجهة الكبرى", "جلسة الأصدقاء الأسطورية"]
+  const SESSION_NAMES_EN = ["Clash of Geniuses", "The Ultimate Showdown", "Brainiacs Battle", "The Golden Trivia Cup", "Midnight Mind Clash", "Titan Showdown", "The Grand Matchup", "Legendary Friends Session"]
 
   const randomizeName = (i: number) => {
-    const list = t('setup_step_final') === 'Final Step' ? FUNNY_NAMES_EN : FUNNY_NAMES_AR
+    const list = lang === 'EN' ? FUNNY_NAMES_EN : FUNNY_NAMES_AR
     const random = list[Math.floor(Math.random() * list.length)]
     updateName(i, random)
   }
 
   const addTeam = () => {
-    if (teams.length >= 4) {
-      return
-    }
+    if (teams.length >= 4) return
     const used = new Set(teams.map(t => t.color))
     const next = TEAM_COLORS.find(c => !used.has(c)) ?? TEAM_COLORS[0]
-    setTeams(p => [...p, { name: `Team ${p.length + 1}`, color: next }])
+    const newNum = teams.length + 1
+    const defaultName = lang === 'AR' ? (newNum === 3 ? 'الفريق الثالث' : newNum === 4 ? 'الفريق الرابع' : `الفريق ${newNum}`) : `Team ${newNum}`
+    setTeams(p => [...p, { name: defaultName, color: next }])
   }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 z-[999] flex items-center justify-center overflow-hidden">
-      <SpaceBackground teams={teams} />
+      className="fixed inset-0 z-[999] flex items-center justify-center overflow-hidden p-4 md:p-6">
+      <SpaceBackground teams={teams} accentColor={accentColor} />
 
       {/* Top controls */}
       <div className="absolute top-5 inset-x-6 z-20 flex items-center justify-end">
         <button onClick={onClose}
           className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center
-            justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all">✕</button>
+            justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all cursor-pointer">✕</button>
       </div>
 
       <motion.div initial={{ y: 50, scale: 0.94, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }}
         exit={{ y: 50, scale: 0.94, opacity: 0 }} transition={{ duration: 0.38, ease: [0.4, 0, 0.2, 1] }}
-        className="relative z-10 w-full max-w-4xl px-4 flex items-center justify-center">
-        <div className="bg-white/[0.04] backdrop-blur-[50px] border border-white/[0.08] rounded-[32px] p-5 w-full
-          shadow-[0_0_100px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.08)]">
+        className="relative z-10 w-full max-w-4xl max-h-[92vh] flex flex-col my-auto">
+        <div className="bg-white/[0.05] backdrop-blur-3xl border border-white/[0.12] rounded-[32px] p-6 w-full shadow-[0_16px_64px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.15)] relative flex flex-col max-h-[92vh] overflow-hidden">
+          {/* Subtle Aurora highlight glow on top border inside */}
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
-          <AnimatePresence mode="wait">
-            {step === 0 ? (
-              <motion.div key="editor" initial={{ opacity: 0, x: -28 }} animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.22 }} className="space-y-3">
+          <div className="overflow-y-auto flex-1 no-scrollbar pr-1 pl-1">
+            <AnimatePresence mode="wait">
+              {step === 'setup' ? (
+                <motion.div key="editor" initial={{ opacity: 0, x: -28 }} animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 28 }} transition={{ duration: 0.22 }} className="space-y-3">
 
-                {/* Session name */}
-                <div className="text-center">
-                  <input type="text" value={sessionName} onChange={e => setSessionName(e.target.value)}
-                    className="bg-transparent text-2xl md:text-3xl font-black text-center w-full
-                      outline-none placeholder-white/10 text-white"
-                    placeholder={t('setup_session_ph')} />
-                </div>
-
-                {/* Teams */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {teams.map((team, idx) => (
-                    <motion.div key={idx} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.07 }}
-                      className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-3 relative group"
-                      style={{ borderTopColor: team.color, borderTopWidth: 3 }}>
-                      {teams.length > 2 && (
-                        <button onClick={() => removeTeam(idx)}
-                          className="absolute top-2 start-2 w-6 h-6 rounded-lg bg-red-500/10 text-red-400
-                            text-xs opacity-0 group-hover:opacity-100 transition-opacity
-                            flex items-center justify-center hover:bg-red-500/20">✕</button>
-                      )}
-                      <motion.div
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 1.6 + idx * 0.3, repeat: Infinity, ease: 'easeInOut' }}
-                        className="flex justify-center mb-1.5"
-                        onClick={() => playMascotSound(idx, voicesEnabled)}>
-                        <Mascot state="idle" size={36} color={team.color} />
-                      </motion.div>
-                      <div className="relative mb-3">
-                        <input value={team.name} onChange={e => updateName(idx, e.target.value)}
-                          className="w-full bg-transparent text-center font-bold text-sm outline-none
-                            border-b border-white/10 pb-1.5 text-white focus:border-white/25 transition-colors pe-6" />
-                        <button onClick={() => randomizeName(idx)} title="Randomize"
-                          className="absolute end-0 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/80 transition-colors text-xs">
-                          🎲
-                        </button>
+                  {/* Session name */}
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md mb-3 group">
+                    <div className="flex items-center gap-3 w-full sm:flex-1">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500/20 to-rose-500/20 border border-amber-500/30 flex items-center justify-center text-xl shadow-md group-hover:scale-105 transition-transform flex-shrink-0">
+                        🏆
                       </div>
-                      <div className="flex gap-1.5 justify-center">
-                        {TEAM_COLORS.map(c => (
-                          <button key={c} onClick={() => updateColor(idx, c)}
-                            className="w-5 h-5 rounded-full flex-shrink-0 transition-all hover:scale-110"
-                            style={{
-                              background: c, opacity: team.color === c ? 1 : 0.35,
-                              transform: team.color === c ? 'scale(1.25)' : undefined,
-                              outline: team.color === c ? '2px solid white' : 'none',
-                              outlineOffset: 2,
-                              boxShadow: team.color === c ? `0 0 10px ${c}` : 'none',
-                            }} />
-                        ))}
+                      <div className="text-start flex-1">
+                        <span className="text-[10px] font-black tracking-widest uppercase text-white/40 block mb-0.5">{lang === 'AR' ? 'اسم الجلسة' : 'Session Title'}</span>
+                        <input type="text" value={sessionName} onChange={e => setSessionName(e.target.value)}
+                          className="bg-transparent text-lg sm:text-xl font-black text-white outline-none w-full border-b border-transparent focus:border-amber-500/50 pb-0.5 transition-all placeholder-white/20"
+                          placeholder={t('setup_session_ph')} />
                       </div>
-                    </motion.div>
-                  ))}
-                  {teams.length < 4 && (
-                    <motion.button onClick={addTeam}
-                      whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                      className="rounded-3xl border-2 border-dashed border-white/[0.07] flex flex-col
-                        items-center justify-center gap-2 text-white/20 hover:text-white/50
-                        hover:border-white/20 transition-all min-h-[160px]">
-                      <span className="text-3xl font-thin">+</span>
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        {t('setup_add_team')}
-                      </span>
-                    </motion.button>
-                  )}
-                </div>
-
-                {/* Punishment config */}
-                <PunishmentConfig
-                  enabled={punishEnabled} setEnabled={setPunishEnabled}
-                  punishments={punishments} setPunishments={setPunishments}
-                  mode={punishMode} setMode={setPunishMode}
-                />
-
-                {/* Punishment Preview Ticker */}
-                <AnimatePresence>
-                  {punishEnabled && punishments.filter(p => p.enabled).length > 0 && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                      className="mt-6 overflow-hidden rounded-2xl bg-red-500/10 border border-red-500/20 py-2 relative">
-                      {/* Gradient Masks for fade effect */}
-                      <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#07071A] to-transparent z-10" />
-                      <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#07071A] to-transparent z-10" />
-                      <div className="flex whitespace-nowrap animate-[marquee_20s_linear_infinite] px-4">
-                        {[...punishments.filter(p => p.enabled), ...punishments.filter(p => p.enabled)].map((p, i) => (
-                          <span key={i} className="mx-6 text-[10px] font-black text-red-400 uppercase tracking-widest inline-flex items-center gap-1.5">
-                            <span className="text-sm">⚠️</span> {p.text}
-                          </span>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Voice & Next Actions */}
-                <div className="flex items-center justify-between pt-2">
-                  <button onClick={() => setVoicesEnabled(!voicesEnabled)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-start">
-                    <span className="text-xl">{voicesEnabled ? '🔊' : '🔇'}</span>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-white leading-tight">{voicesEnabled ? (lang === 'AR' ? 'المعلق الصوتي مفعل' : 'Mascot Voice Enabled') : (lang === 'AR' ? 'المعلق الصوتي معطل' : 'Mascot Voice Disabled')}</span>
-                      <span className="text-[9px] text-white/40 leading-tight">{lang === 'AR' ? 'يتحكم في تعليقات الشخصية أثناء اللعب' : 'Toggles the mascot commentary during the game'}</span>
                     </div>
-                  </button>
+                    <button onClick={() => {
+                      const list = lang === 'EN' ? SESSION_NAMES_EN : SESSION_NAMES_AR;
+                      setSessionName(list[Math.floor(Math.random() * list.length)]);
+                    }} title={lang === 'AR' ? 'اسم عشوائي' : 'Random Title'}
+                      className="w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 hover:border-white/25 flex items-center justify-center text-xl text-white/80 hover:text-white transition-all duration-300 shadow-sm flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 group/btn">
+                      <span className="group-hover/btn:rotate-180 transition-transform duration-500 block">🎲</span>
+                    </button>
+                  </div>
 
-                  <motion.button onClick={() => setStep(1)}
-                    whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-                    className="group relative px-8 py-2.5 rounded-2xl overflow-hidden bg-white
-                      font-black text-black uppercase tracking-[0.22em] text-xs">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/10
-                      to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                    <span className="relative">معاينة المباراة ⚔</span>
-                  </motion.button>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div key="matchup" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.22 }}>
-                <MatchupPreview
-                  teams={teams} voicesEnabled={voicesEnabled}
-                  onConfirm={onStart} onBack={() => setStep(0)}
-                  isStarting={isStarting}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  {/* Teams */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {teams.map((team, idx) => (
+                      <motion.div key={idx} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.07 }}
+                        className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3.5 relative group hover:border-white/15 transition-all duration-300 shadow-lg flex flex-col"
+                        style={{ borderTopColor: team.color, borderTopWidth: 4 }}>
+                        {teams.length > 2 && (
+                          <button onClick={() => removeTeam(idx)} title={lang === 'AR' ? 'حذف الفريق' : 'Remove Team'}
+                            className="absolute top-2 start-2 w-6 h-6 rounded-full bg-red-500/20 border border-red-500/30 text-red-300 hover:text-red-100
+                              text-xs opacity-85 hover:opacity-100 hover:scale-110 hover:bg-red-500/40 transition-all duration-300 flex items-center justify-center shadow-md z-20 cursor-pointer font-bold">✕</button>
+                        )}
+                        <motion.div
+                          animate={{ y: [0, -4, 0] }}
+                          transition={{ duration: 1.6 + idx * 0.3, repeat: Infinity, ease: 'easeInOut' }}
+                          className="flex justify-center mb-1.5 cursor-pointer"
+                          onClick={() => playMascotSound(idx, voicesEnabled)}>
+                          <Mascot state="idle" size={36} color={team.color} />
+                        </motion.div>
+                        <div className="relative mb-3 mt-auto">
+                          <input value={team.name} onChange={e => updateName(idx, e.target.value)}
+                            className="w-full bg-transparent text-center font-bold text-sm outline-none
+                              border-b border-white/10 pb-1 text-white focus:border-white/40 transition-colors pe-6" />
+                          <button onClick={() => randomizeName(idx)} title="Randomize"
+                            className="absolute end-0 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-transform hover:scale-110 text-xs cursor-pointer p-1">
+                            🎲
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5 justify-items-center mt-1 pt-2.5 border-t border-white/[0.08]">
+                          {TEAM_COLORS.map(c => (
+                            <button key={c} onClick={() => updateColor(idx, c)} title={c}
+                              className="w-5 h-5 rounded-full flex items-center justify-center transition-transform duration-300 hover:scale-125 cursor-pointer shadow-md flex-shrink-0"
+                              style={{
+                                background: c, opacity: team.color === c ? 1 : 0.65,
+                                transform: team.color === c ? 'scale(1.25)' : undefined,
+                                boxShadow: team.color === c ? `0 0 16px ${c}` : 'none',
+                                border: team.color === c ? '2px solid white' : '1px solid rgba(255,255,255,0.25)'
+                              }}>
+                              {team.color === c && <span className="text-[9px] text-white font-black drop-shadow">✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    ))}
+                    {teams.length < 4 && (
+                      <motion.button onClick={addTeam}
+                        whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }} whileTap={{ scale: 0.98 }}
+                        className="rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-2.5 text-white/40 hover:text-white transition-all duration-300 min-h-[170px] cursor-pointer group shadow-inner bg-white/[0.01]">
+                        <div className="w-10 h-10 rounded-xl bg-white/[0.05] group-hover:bg-amber-500/20 border border-white/10 group-hover:border-amber-500/40 flex items-center justify-center text-xl group-hover:scale-110 transition-all duration-300 shadow-md">
+                          +
+                        </div>
+                        <span className="text-[11px] font-black uppercase tracking-widest group-hover:tracking-[0.2em] transition-all duration-300">
+                          {t('setup_add_team')}
+                        </span>
+                      </motion.button>
+                    )}
+                  </div>
+
+                  {/* Punishment summary card */}
+                  <div onClick={() => setStep('punishments')}
+                    className="bg-white/[0.03] border border-white/[0.12] hover:border-white/25 rounded-2xl p-4 shadow-md hover:bg-white/[0.05] transition-all duration-300 cursor-pointer group flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center text-xl shadow-md group-hover:scale-110 transition-transform flex-shrink-0">
+                        ⚡
+                      </div>
+                      <div className="text-start">
+                        <div className="flex items-center gap-2.5 mb-0.5">
+                          <h3 className="text-sm font-black text-white">{t('setup_punishments')}</h3>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide border ${punishEnabled ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 animate-pulse' : 'bg-white/5 border-white/10 text-white/40'}`}>
+                            {punishEnabled ? `${punishments.filter(p => p.enabled).length} ${lang === 'AR' ? 'فعالة' : 'Active'}` : (lang === 'AR' ? 'معطلة' : 'Disabled')}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/50 leading-tight">
+                          {lang === 'AR' ? 'انقر لتخصيص العقوبات وقواعد التحدي وآلية الاختيار' : 'Click to configure custom punishments and penalty rules'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.05] group-hover:bg-purple-500/20 border border-white/10 group-hover:border-purple-500/40 text-xs font-black text-white/80 group-hover:text-white transition-all shadow-sm flex-shrink-0">
+                      <span className="text-sm">⚙️</span>
+                      <span className="font-black uppercase tracking-wide">{lang === 'AR' ? 'تكوين' : 'Configure'}</span>
+                      <span className="text-xs font-bold ml-1">{lang === 'AR' ? '←' : '→'}</span>
+                    </div>
+                  </div>
+
+                  {/* Punishment Preview Ticker */}
+                  <AnimatePresence>
+                    {punishEnabled && punishments.filter(p => p.enabled).length > 0 && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                        className="mt-3 overflow-hidden rounded-xl bg-white/[0.03] border border-white/10 py-2.5 relative shadow-inner">
+                        {/* Gradient Masks for fade effect */}
+                        <div className="absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#07071A] to-transparent z-10 pointer-events-none" />
+                        <div className="absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#07071A] to-transparent z-10 pointer-events-none" />
+                        <div className="overflow-hidden whitespace-nowrap py-1 flex w-full select-none">
+                          <motion.div
+                            animate={{ x: lang === 'AR' ? ['0%', '50%'] : ['0%', '-50%'] }}
+                            transition={{ duration: 150, repeat: Infinity, ease: 'linear' }}
+                            className="flex whitespace-nowrap items-center w-max"
+                          >
+                            {[...punishments.filter(p => p.enabled), ...punishments.filter(p => p.enabled), ...punishments.filter(p => p.enabled), ...punishments.filter(p => p.enabled)].map((p, i) => (
+                              <span key={i} className="mx-6 text-xs font-bold text-white/80 inline-flex items-center gap-2 tracking-wide shrink-0">
+                                <span className="text-sm text-purple-400 animate-pulse">⚡</span> {lang === 'EN' ? translatePunishment(p.text) : p.text}
+                              </span>
+                            ))}
+                          </motion.div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Voice & Next Actions */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-white/10 mt-4">
+                    <button onClick={() => setVoicesEnabled(!voicesEnabled)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 shadow-md text-start group ${voicesEnabled ? 'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-emerald-500/40 shadow-emerald-500/10 hover:border-emerald-500/60' : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'}`}>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-md transition-transform duration-300 group-hover:scale-110 ${voicesEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/10 text-white/40'}`}>
+                        {voicesEnabled ? '🔊' : '🔇'}
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-white uppercase tracking-wider">{voicesEnabled ? (lang === 'AR' ? 'المعلق الصوتي مفعل' : 'Mascot Voice Enabled') : (lang === 'AR' ? 'المعلق الصوتي معطل' : 'Mascot Voice Disabled')}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${voicesEnabled ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]' : 'bg-red-500'}`} />
+                        </div>
+                        <span className="text-[10px] text-white/50 leading-tight mt-0.5">{lang === 'AR' ? 'يتحكم في تعليقات الشخصية أثناء اللعب' : 'Toggles mascot commentary'}</span>
+                      </div>
+                    </button>
+
+                    <motion.button onClick={() => setStep('matchup')}
+                      whileHover={{ scale: 1.03, filter: 'brightness(1.15)' }} whileTap={{ scale: 0.97 }}
+                      className="flex items-center justify-center gap-3 px-8 py-3.5 rounded-2xl font-black text-white tracking-[0.15em] text-sm shadow-[0_0_25px_rgba(168,85,247,0.4)] hover:shadow-[0_0_40px_rgba(236,72,153,0.6)] transition-all duration-500 border border-purple-400/40 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 cursor-pointer">
+                      {lang === 'EN' ? (
+                        <>
+                          <span className="uppercase font-black">Matchup Preview ⚔️</span>
+                          <span className="text-lg">→</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-black">معاينة المباراة ⚔️</span>
+                          <span className="text-lg">←</span>
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
+                </motion.div>
+              ) : step === 'punishments' ? (
+                <motion.div key="punishments" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.25 }} className="space-y-3 py-0.5">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-white/10 gap-3">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setStep('setup')} title={lang === 'AR' ? 'عودة' : 'Back'}
+                        className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/25 flex items-center justify-center text-lg text-white hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-md flex-shrink-0 font-bold">
+                        {lang === 'AR' ? '→' : '←'}
+                      </button>
+                      <div className="text-start">
+                        <h2 className="text-lg md:text-xl font-black text-white flex items-center gap-2 text-start">
+                          <span>⚡</span>
+                          <span>{t('setup_punishments')}</span>
+                        </h2>
+                        <p className="text-[11px] text-white/50 mt-0.5 text-start">{lang === 'AR' ? 'تخصيص العقوبات وقواعد التحدي وآلية الاختيار' : 'Customize challenge rules, mode, and penalties'}</p>
+                      </div>
+                    </div>
+                    <div onClick={() => setPunishEnabled(!punishEnabled)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs transition-all duration-300 shadow-md cursor-pointer ${punishEnabled ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-emerald-500/10 hover:border-emerald-500/70' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'}`}>
+                      <span className={`w-2.5 h-2.5 rounded-full ${punishEnabled ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]' : 'bg-white/20'}`} />
+                      <span>{punishEnabled ? (lang === 'AR' ? 'العقوبات مفعلة' : 'Enabled') : (lang === 'AR' ? 'العقوبات معطلة' : 'Disabled')}</span>
+                    </div>
+                  </div>
+
+                  <PunishmentConfig
+                    enabled={punishEnabled} setEnabled={setPunishEnabled}
+                    punishments={punishments} setPunishments={setPunishments}
+                    mode={punishMode} setMode={setPunishMode}
+                  />
+
+                  <div className="flex justify-end pt-3 border-t border-white/10 mt-3">
+                    <button onClick={() => setStep('setup')}
+                      className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:brightness-110 font-black text-white tracking-wide text-xs md:text-sm shadow-md transition-all duration-300 cursor-pointer flex items-center gap-2 hover:scale-105 active:scale-95 border border-purple-400/40">
+                      <span className="text-base font-black">✓</span>
+                      <span className="uppercase">{lang === 'AR' ? 'حفظ التعديلات والعودة' : 'Save & Return'}</span>
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div key="matchup" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.22 }}>
+                  <MatchupPreview
+                    teams={teams} voicesEnabled={voicesEnabled}
+                    onConfirm={onStart} onBack={() => setStep('setup')}
+                    isStarting={isStarting}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </motion.div>
     </motion.div>
   )
+}
+
+// ─────────────────────────────────────────────
+// Topic & Category Translations & Enhancements
+// ─────────────────────────────────────────────
+function translatePunishment(text: string): string {
+  if (!text) return '';
+  const m: Record<string, string> = {
+    'اعمل 10 ضغطات': 'Do 10 pushups',
+    'غني مقطع من أغنية': 'Sing a verse of a song',
+    'قل أحرج سر عندك': 'Reveal your most embarrassing secret',
+    'قلّد شخصية مشهورة لدقيقة': 'Imitate a celebrity for 1 minute',
+    'اشرب كوب ماء دفعة واحدة': 'Drink a glass of water in one go',
+    'ابق صامتاً لدورتين كاملتين': 'Stay completely silent for 2 rounds',
+    'اعترف بأحرج موقف في حياتك': 'Confess your most awkward life moment',
+    'حكّي نكتة وإلا تعاقب مرتين': 'Tell a joke or take double punishment',
+    'تحدث بلهجة فضائية غريبة لمدة دقيقة': 'Speak in a strange alien accent for 1 minute',
+    'امشِ في الغرفة على أطراف أصابعك كاللص': 'Walk around the room on tiptoes like a burglar',
+    'قف على قدم واحدة طوال الجولة القادمة': 'Stand on one foot for the entire next round',
+    'قم بأداء تحية عسكرية مبالغ فيها لكل الحاضرين': 'Give an exaggerated salute to everyone in the room',
+    'تظاهر بأنك روبوت نفدت بطاريته ببطء': 'Pretend to be a robot slowly running out of battery',
+    'ابتسم ابتسامة عريضة دون توقف لمدة دقيقة': 'Maintain a wide grin without stopping for 1 minute',
+    'اصنع قبعة من الورق وضعها على رأسك': 'Make a paper hat and wear it on your head',
+    'قم بأداء رقصة درامية حزينة لمدة دقيقة': 'Perform a dramatic sad dance for 1 minute',
+    'اشرح لماذا الدجاجة عبرت الشارع بأسلوب فيلسوف': 'Explain why the chicken crossed the road like a philosopher',
+    'حاول إقناع الفريق المنافس بشراء قلمك الفارغ': 'Try convincing the opposing team to buy your empty pen',
+    'تظاهر بأنك معلق رياضي يصف مباراة شطرنج حماسية': 'Pretend to be a sports commentator describing an intense chess match',
+    'تحدث باللغة العربية الفصحى فقط للجولتين القادمتين': 'Speak strictly in classical Arabic for the next 2 rounds',
+    'قم بتمثيل مشهد درامي صامت يعبر عن الجوع الشديد': 'Mime a dramatic silent scene expressing extreme hunger',
+    'قلّد صوت ثلاثة حيوانات مختلفة ببراعة': 'Flawlessly imitate the sounds of three different animals',
+    'امنع استخدام حرف الألف في كلامك للجولة القادمة': 'Do not use the letter A in your speech for the next round',
+    'تظاهر بأنك مذيع نشرة جوية يواجه إعصاراً مدمراً': 'Pretend to be a weather anchor facing a catastrophic hurricane',
+    'غنِّ أغنية أطفال مشهورة بأسلوب الأوبرا الدرامية': 'Sing a famous nursery rhyme in a dramatic opera style',
+    'دع أحد أعضاء الفريق المنافس يختار لك تسريحة شعر مضحكة': 'Let an opposing team member style your hair into something funny',
+    'قم بأداء إعلان ترويجي حماسي لمنتج خيالي سخيف': 'Perform an enthusiastic commercial for a silly fictional product',
+    'تحدث بأسلوب الشرير في أفلام الكرتون حتى نهاية اللعبة': 'Speak like a cartoon villain until the end of the game',
+    'اعتذر لوسادتك بحرارة وكأنك خنتها': 'Apologise passionately to your pillow as if you betrayed it',
+  };
+  return m[text.trim()] ?? text;
+}
+
+function translateCategoryText(text: string = '', isDesc = false): string {
+  if (!text) return '';
+  const t = text.trim();
+  const map: Record<string, string> = {
+    // Categories
+    'كأس العالم': 'World Cup',
+    'دوري أبطال أوروبا': 'UEFA Champions League',
+    'الدوري الإسباني': 'La Liga',
+    'الدوري الإنجليزي': 'Premier League',
+    'أساطير كرة القدم': 'Football Legends',
+    'قوانين وحكام': 'Rules & Referees',
+    'الحرب العالمية الأولى': 'World War I',
+    'الحرب العالمية الثانية': 'World War II',
+    'الدولة العثمانية': 'Ottoman Empire',
+    'الحضارة الفرعونية': 'Pharaonic Civilization',
+    'الخلفاء الراشدون': 'The Rightly Guided Caliphs',
+    'شخصيات تاريخية': 'Historical Figures',
+    'أفلام الأوسكار': 'Oscar Winning Movies',
+    'أفلام مارفل ودي سي': 'Marvel & DC Movies',
+    'مسلسلات أيقونية': 'Iconic TV Series',
+    'مخرجون وممثلون': 'Directors & Actors',
+    'أفلام الرعب': 'Horror Movies',
+    'الأنمي والكرتون': 'Anime & Animation',
+    'الفضاء والمجرات': 'Space & Galaxies',
+    'الفيزياء والكيمياء': 'Physics & Chemistry',
+    'جسم الإنسان والطب': 'Human Body & Medicine',
+    'التكنولوجيا والذكاء الاصطناعي': 'Tech & AI',
+    'علماء ومكتشفون': 'Scientists & Inventors',
+    'البيئة والحيوانات': 'Animals & Environment',
+    'عواصم العالم': 'World Capitals',
+    'أعلام ودول': 'Flags & Countries',
+    'أنهار ومحيطات': 'Rivers & Oceans',
+    'معالم سياحية': 'Famous Landmarks',
+    'تضاريس ومناخ': 'Terrain & Climate',
+    'قارات العالم': 'Continents',
+    'ألغاز وفوازير': 'Riddles & Brainteasers',
+    'معلومات غريبة': 'Odd Facts',
+    'أرقام قياسية': 'World Records',
+    'أمثال وحكم': 'Proverbs & Wisdom',
+    'طعام ومطابخ': 'Food & Cuisines',
+    'ألعاب فيديو': 'Video Games',
+    'الشعر العربي القديم': 'Classical Arabic Poetry',
+    'روايات عالمية': 'World Novels',
+    'أدباء وفلاسفة': 'Writers & Philosophers',
+    'الكتب المقدسة والتاريخية': 'Sacred & Historic Books',
+    'الأساطير الإغريقية والرومانية': 'Greek & Roman Mythology',
+    'الموسيقى الكلاسيكية': 'Classical Music',
+    'أغاني الطرب الأصيل': 'Classic Tarab Songs',
+    'رسامون ولوحات': 'Painters & Masterpieces',
+    'الآلات الموسيقية': 'Musical Instruments',
+    'المسرح والفنون الاستعراضية': 'Theater & Performing Arts',
+  };
+
+  if (!isDesc && map[t]) return map[t];
+
+  // For descriptions or unmapped items
+  let out = text;
+  for (const [ar, en] of Object.entries(map)) {
+    out = out.replace(new RegExp(ar, 'g'), en);
+  }
+  return out;
+}
+
+function getTopicEnhancements(topicName: string = '', lang: 'AR' | 'EN', index: number) {
+  const n = topicName.toLowerCase();
+  if (n.includes('كورة') || n.includes('كرة') || n.includes('قدم') || n.includes('رياضة') || n.includes('sport') || n.includes('football') || n.includes('soccer')) {
+    return {
+      color: '#59B292',
+      enName: 'Football & Sports',
+      tagline: lang === 'AR' ? 'روح التحدي والشغف! استرجع أمجاد البطولات، الأرقام القياسية، وأساطير الملاعب ⚽' : 'Relive legendary championship moments, unbeatable records, and sports icons ⚽'
+    };
+  }
+  if (n.includes('تاريخ') || n.includes('history')) {
+    return {
+      color: '#7F2020',
+      enName: 'History & Civilizations',
+      tagline: lang === 'AR' ? 'سافر عبر الزمن لفك رموز الإمبراطوريات العظيمة والأحداث التي صاغت مسار البشرية ⏳' : 'Travel through time to decode ancient empires and monumental world events ⏳'
+    };
+  }
+  if (n.includes('أفلام') || n.includes('سينما') || n.includes('مسلسل') || n.includes('movie') || n.includes('cinema') || n.includes('series')) {
+    return {
+      color: '#810B38',
+      enName: 'Movies & Cinema',
+      tagline: lang === 'AR' ? 'أضواء، كاميرا، إثارة! اختبر ذاكرتك السينمائية مع كلاسيكيات الشاشة الفضية 🎬' : 'Lights, camera, action! Test your memory with iconic masterpieces of the silver screen 🎬'
+    };
+  }
+  if (n.includes('علوم') || n.includes('علم') || n.includes('فيزياء') || n.includes('فضاء') || n.includes('science') || n.includes('physics') || n.includes('space')) {
+    return {
+      color: '#0D0B61',
+      enName: 'Science & Cosmos',
+      tagline: lang === 'AR' ? 'استكشف أسرار الكون من أصغر الذرات إلى أبعد المجرات وأعقد النظريات 🔬' : 'Explore the mysteries of the universe from subatomic particles to vast galaxies 🔬'
+    };
+  }
+  if (n.includes('عامة') || n.includes('ثقافة') || n.includes('معلومات') || n.includes('general') || n.includes('trivia') || n.includes('knowledge')) {
+    return {
+      color: '#FF653F',
+      enName: 'General Knowledge',
+      tagline: lang === 'AR' ? 'بحر واسع من الثقافة العامة والطرائف الغريبة التي تتحدى ذكاءك وسرعة بديهتك 💡' : 'A vast ocean of fascinating trivia facts challenging your wit and quick thinking 💡'
+    };
+  }
+  if (n.includes('جغرافيا') || n.includes('بلدان') || n.includes('عواصم') || n.includes('geography') || n.includes('world') || n.includes('countries')) {
+    return {
+      color: '#7DAACB',
+      enName: 'Geography & World',
+      tagline: lang === 'AR' ? 'طُف حول العالم واكتشف تضاريس الأرض، عواصم الدول، وعجائب الطبيعة الساحرة 🌍' : 'Navigate the globe to discover majestic wonders, hidden capitals, and diverse cultures 🌍'
+    };
+  }
+  if (n.includes('أدب') || n.includes('كتب') || n.includes('شعر') || n.includes('literature') || n.includes('book') || n.includes('poetry')) {
+    return {
+      color: '#D97706',
+      enName: 'Literature & Books',
+      tagline: lang === 'AR' ? 'بين سطور الروايات وأبيات الخلود، رحلة في عقول أعظم الكتاب والشعراء 📖' : 'Journey through the greatest literary masterworks and poetic verses across eras 📖'
+    };
+  }
+  if (n.includes('فن') || n.includes('موسيقى') || n.includes('أغاني') || n.includes('art') || n.includes('music') || n.includes('songs')) {
+    return {
+      color: '#EC4899',
+      enName: 'Arts & Music',
+      tagline: lang === 'AR' ? 'ألحان خالدة ولوحات عبقرية تلامس الروح وتلهم الخيال الإبداعي 🎨' : 'Immerse yourself in timeless melodies and visionary artistic masterworks 🎨'
+    };
+  }
+  if (n.includes('إسلام') || n.includes('دين') || n.includes('قرآن') || n.includes('islam') || n.includes('religion')) {
+    return {
+      color: '#059669',
+      enName: 'Islamic & Religion',
+      tagline: lang === 'AR' ? 'إضاءات روحية ومعرفية من السيرة النبوية والتاريخ الإسلامي العريق 🕌' : 'Spiritual and historical insights from early Islamic civilization and wisdom 🕌'
+    };
+  }
+  if (n.includes('تقنية') || n.includes('تكنولوجيا') || n.includes('حاسوب') || n.includes('tech') || n.includes('computer')) {
+    return {
+      color: '#2563EB',
+      enName: 'Tech & AI',
+      tagline: lang === 'AR' ? 'من المعالجات الدقيقة إلى الخوارزميات الذكية، رحلة في عالم التكنولوجيا المستقبلية 💻' : 'From microprocessors to advanced AI algorithms in the digital frontier 💻'
+    };
+  }
+  if (n.includes('أنمي') || n.includes('ألعاب') || n.includes('كرتون') || n.includes('anime') || n.includes('gaming')) {
+    return {
+      color: '#8B5CF6',
+      enName: 'Anime & Gaming',
+      tagline: lang === 'AR' ? 'عوالم خيالية ومغامرات ملحمية في أشهر أعمال الأنمي وألعاب الفيديو 🎮' : 'Legendary adventures across iconic anime masterworks and video game realms 🎮'
+    };
+  }
+  if (n.includes('ألغاز') || n.includes('فوازير') || n.includes('أحاجي') || n.includes('riddle') || n.includes('puzzle')) {
+    return {
+      color: '#F59E0B',
+      enName: 'Riddles & Puzzles',
+      tagline: lang === 'AR' ? 'تحديات ذكية وأحاجي غامضة تختبر قدرتك على التحليل والتفكير المنطقي 🧩' : 'Clever brainteasers testing your analytical deduction and quick problem solving 🧩'
+    };
+  }
+  if (n.includes('حيوان') || n.includes('طبيعة') || n.includes('بيئة') || n.includes('animal') || n.includes('nature')) {
+    return {
+      color: '#10B981',
+      enName: 'Nature & Animals',
+      tagline: lang === 'AR' ? 'أسرار المملكة الحيوانية وعجائب الأنظمة البيئية في كوكبنا الأخضر 🌿' : 'Wonders of the wild animal kingdom and breathtaking ecosystems 🌿'
+    };
+  }
+  if (n.includes('طعام') || n.includes('مطبخ') || n.includes('أكلات') || n.includes('food') || n.includes('kitchen')) {
+    return {
+      color: '#EA580C',
+      enName: 'Food & Cuisines',
+      tagline: lang === 'AR' ? 'نكهات عالمية وثقافات الطهي عبر التاريخ وأشهر الأطباق التقليدية 🍲' : 'World culinary traditions, famous historic dishes, and exotic spices 🍲'
+    };
+  }
+  if (n.includes('مشاهير') || n.includes('شخصيات') || n.includes('celebrity') || n.includes('people')) {
+    return {
+      color: '#E11D48',
+      enName: 'Famous Figures',
+      tagline: lang === 'AR' ? 'سير وحكايات الشخصيات المؤثرة التي تركت بصمتها في ذاكرة العالم 🌟' : 'Biographies and tales of influential icons who shaped world memory 🌟'
+    };
+  }
+  if (n.includes('أساطير') || n.includes('خرافات') || n.includes('mythology') || n.includes('legend')) {
+    return {
+      color: '#6366F1',
+      enName: 'Myths & Legends',
+      tagline: lang === 'AR' ? 'حكايات أسطورية وملاحم خيالية من الحضارات القديمة والثقافات الشعبية 🐉' : 'Epic mythological tales and folklore epics from ancient global civilizations 🐉'
+    };
+  }
+  // Curated 20 distinct unique fallback colors
+  const colors = [
+    '#59B292', '#7F2020', '#810B38', '#0D0B61', '#FF653F', 
+    '#7DAACB', '#D97706', '#EC4899', '#059669', '#2563EB', 
+    '#8B5CF6', '#F59E0B', '#10B981', '#EA580C', '#6366F1', 
+    '#E11D48', '#0284C7', '#4F46E5', '#9333EA', '#C026D3'
+  ];
+  const fallbackColor = colors[index % colors.length];
+  return {
+    color: fallbackColor,
+    enName: topicName,
+    tagline: lang === 'AR' ? 'عالم مليء بالأسرار والتحديات الذكية التي تنتظر من يكتشفها ويحصد نقاطها! ✨' : 'An exciting realm of trivia secrets and brain challenges waiting to be conquered! ✨'
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -1009,7 +1269,8 @@ export default function GameSetupPage() {
     () => Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId,
     [params.sessionId]
   )
-  const { lang, mounted } = useFeedbackStore()
+  const { lang, themeMode, mounted } = useFeedbackStore()
+  const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && (typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true))
   const supabase = useMemo(() => createClient(), [])
   const t = useTranslator()
   const { selectCategories, generateQuestions } = useSession()
@@ -1038,6 +1299,7 @@ export default function GameSetupPage() {
   const [sortBy, setSortBy] = useState<'admin' | 'alpha' | 'popular' | 'new'>('admin')
   const [customSetup, setCustomSetup] = useState<any>(null)
   const [direction, setDirection] = useState<1 | -1>(1) // 1=down, -1=up
+  const [isHeaderMinimized, setIsHeaderMinimized] = useState(false)
 
   const prevCountRef = useRef(0)
   const draftRestoredRef = useRef(false)
@@ -1053,6 +1315,28 @@ export default function GameSetupPage() {
       if (v !== null) setVoicesEnabled(v === 'true')
     } catch { }
   }, [])
+
+  // ── Sync default names and punishments when lang changes ──
+  useEffect(() => {
+    setSessionName(prev => (prev === 'جلسة الأصدقاء' || prev === 'Friends Session') ? (lang === 'AR' ? 'جلسة الأصدقاء' : 'Friends Session') : prev);
+    setTeams(prev => prev.map(t => {
+      if (t.name === 'الفريق الأول' || t.name === 'Team Alpha') return { ...t, name: lang === 'AR' ? 'الفريق الأول' : 'Team Alpha' };
+      if (t.name === 'الفريق الثاني' || t.name === 'Team Beta') return { ...t, name: lang === 'AR' ? 'الفريق الثاني' : 'Team Beta' };
+      if (t.name === 'الفريق الثالث' || t.name === 'Team Gamma') return { ...t, name: lang === 'AR' ? 'الفريق الثالث' : 'Team Gamma' };
+      if (t.name === 'الفريق الرابع' || t.name === 'Team Delta') return { ...t, name: lang === 'AR' ? 'الفريق الرابع' : 'Team Delta' };
+      return t;
+    }));
+    setPunishments(prev => prev.map(p => {
+      const isDef = DEFAULT_PUNISHMENTS.some(dp => dp.text === p.text || translatePunishment(dp.text) === p.text);
+      if (isDef) {
+        const matchingDef = DEFAULT_PUNISHMENTS.find(dp => dp.id === p.id);
+        if (matchingDef) {
+          return { ...p, text: lang === 'EN' ? translatePunishment(matchingDef.text) : matchingDef.text };
+        }
+      }
+      return p;
+    }));
+  }, [lang]);
 
   // ── Load data ──
   useEffect(() => {
@@ -1077,7 +1361,7 @@ export default function GameSetupPage() {
 
         const [tR, cR, sR] = await Promise.all([
           (supabase.from('topics') as any).select('*').order('order_index'),
-          (supabase.from('categories') as any).select('*'),
+          (supabase.from('categories') as any).select('*').not('topic_id', 'is', null),
           (supabase.from('sessions') as any).select('*').eq('id', sessionId).single(),
         ])
         if (tR.error) throw tR.error
@@ -1085,9 +1369,15 @@ export default function GameSetupPage() {
         const rawTopics: any[] = tR.data ?? []
         const rawCats: any[] = cR.data ?? []
         if (sR.data?.name) setSessionName(sR.data.name)
-        const merged: Topic[] = rawTopics.map(t => ({
-          ...t, categories: rawCats.filter((c: any) => c.topic_id === t.id),
-        }))
+        const merged: Topic[] = rawTopics.map((t, idx) => {
+          const enh = getTopicEnhancements(t.name, lang, idx);
+          return {
+            ...t,
+            color: enh.color,
+            tagline: enh.tagline,
+            categories: rawCats.filter((c: any) => c.topic_id === t.id),
+          };
+        })
         setTopics(merged)
         setActiveTopic(merged[0] ?? null)
         // URL restore
@@ -1115,10 +1405,25 @@ export default function GameSetupPage() {
 
   // ── Filtered + sorted topics ──
   const filteredTopics = useMemo<Topic[]>(() => {
+    const translatedTopics = topics.map((t, idx) => {
+      const enh = getTopicEnhancements(t.name, lang, idx);
+      return {
+        ...t,
+        color: enh.color,
+        name: lang === 'EN' ? enh.enName : t.name,
+        tagline: enh.tagline,
+        categories: t.categories.map(c => ({
+          ...c,
+          name: lang === 'EN' ? translateCategoryText(c.name, false) : c.name,
+          description: lang === 'EN' && c.description ? translateCategoryText(c.description, true) : c.description
+        }))
+      };
+    });
+
     const q = searchQuery.toLowerCase()
     const r = q
-      ? topics.filter(t => t.name.toLowerCase().includes(q) || t.categories.some(c => c.name.toLowerCase().includes(q)))
-      : topics
+      ? translatedTopics.filter(t => t.name.toLowerCase().includes(q) || t.categories.some(c => c.name.toLowerCase().includes(q)))
+      : translatedTopics
     switch (sortBy) {
       case 'alpha': return [...r].sort((a, b) => a.name.localeCompare(b.name, lang === 'AR' ? 'ar' : 'en'))
       case 'new': return [...r].sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
@@ -1129,7 +1434,7 @@ export default function GameSetupPage() {
 
   useEffect(() => {
     if (!filteredTopics.length) return
-    setActiveTopic(prev => prev && filteredTopics.find(t => t.id === prev.id) ? prev : filteredTopics[0])
+    setActiveTopic(prev => filteredTopics.find(t => t.id === prev?.id) ?? filteredTopics[0])
   }, [filteredTopics])
 
   // ── Confetti on MAX_CATS ──
@@ -1153,7 +1458,7 @@ export default function GameSetupPage() {
       if (prev.length >= MAX_CATS) return prev
       return [...prev, catId]
     })
-    playClickSound()
+    playSound('click')
   }, [])
 
 
@@ -1210,7 +1515,7 @@ export default function GameSetupPage() {
 
     // Play intro synchronously
     try {
-      audioDirector.runSequence([{ kind: 'mp3', url: '/intro.mp3' }])
+      playSound('fanfare')
     } catch (e) { }
 
     try {
@@ -1297,145 +1602,104 @@ export default function GameSetupPage() {
         {isStarting && <GeneratingScreen teams={teams} accentColor={activeColor} />}
       </AnimatePresence>
 
-      <div className="h-[100dvh] w-screen bg-[#07071A] text-white flex flex-col overflow-hidden relative"
+      <div className={`h-[100dvh] w-screen flex flex-col overflow-hidden relative transition-colors duration-700 ${isDarkMode ? 'bg-[#05030a] text-white' : 'bg-slate-50 text-slate-900'}`}
         style={{ direction: dir, fontFamily: 'var(--font-tajawal),var(--font-cairo),sans-serif' }}>
 
         <Confetti active={showConfetti} />
 
 
-        {/* Dynamic background */}
-        <AnimatePresence>
-          {activeTopic?.background_url ? (
-            <motion.div key={`bg-${activeTopic.id}`} initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 1.5, ease: "easeInOut" }} className="fixed inset-0 pointer-events-none z-0">
-              <img src={activeTopic.background_url} alt="" className="w-full h-full object-cover blur-[2px] opacity-80" />
-              <div className="absolute inset-0 bg-gradient-to-b from-[#07071A]/90 via-[#07071A]/70 to-[#07071A]" />
-            </motion.div>
-          ) : (
-            <motion.div key={`glow-${activeTopic?.id ?? 'x'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 1.5, ease: "easeInOut" }} className="fixed inset-0 pointer-events-none z-0"
-              style={{ background: `radial-gradient(ellipse at 50% 0%, ${activeColor}25 0%, transparent 70%), radial-gradient(ellipse at 100% 100%, ${activeColor}15 0%, transparent 50%)` }} />
-          )}
-        </AnimatePresence>
+        {/* Dynamic solid / radial background tailored exactly to activeTopic */}
+        <motion.div
+          animate={{ backgroundColor: activeColor }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 pointer-events-none z-0 overflow-hidden"
+        >
+          {/* Ambient immersive tint overlay */}
+          <div className={`absolute inset-0 transition-colors duration-700 ${isDarkMode ? 'bg-[#040209]/92' : 'bg-[#f8fafc]/90'}`} />
+          
+          {/* Ambient immersive radial glow matching activeColor */}
+          <motion.div className="absolute top-0 left-1/2 -translate-x-1/2 w-[140vw] h-[90vh] rounded-full blur-[140px]"
+            animate={{
+              background: `radial-gradient(circle, ${activeColor}${isDarkMode ? '50' : '75'}, transparent 75%)`
+            }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </motion.div>
 
         {/* Sidebar hover preview */}
 
 
-        {/* ── HEADER ── */}
-        <motion.header animate={{ backgroundColor: `${activeColor}12`, borderColor: `${activeColor}20` }}
+        {/* ── UNIFIED COMMAND DOCK TOP BAR (<header>) ── */}
+        <motion.header animate={{ backgroundColor: isDarkMode ? `${activeColor}15` : `${activeColor}20`, borderColor: isDarkMode ? `${activeColor}30` : `${activeColor}40` }}
           transition={{ duration: 0.65 }}
-          className="relative z-10 px-8 h-[64px] flex items-center justify-between flex-shrink-0
-          backdrop-blur-md border-b">
+          className={`relative z-50 px-6 py-3 flex items-center justify-between flex-shrink-0 backdrop-blur-2xl border-b shadow-2xl gap-6 ${isDarkMode ? 'bg-black/60 text-white' : 'bg-white/80 text-slate-900'}`}>
 
-          <div className="flex items-center gap-5">
+          {/* Left: Back button & Title */}
+          <div className="flex items-center gap-4 shrink-0">
             <button onClick={() => router.back()}
-              className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10
-              flex items-center justify-center hover:bg-white/10 transition-all text-sm">
-              {dir === 'rtl' ? '→' : '←'}
+              className={`w-11 h-11 rounded-[1.2rem] ${isDarkMode ? 'bg-white/5 border-white/10 hover:bg-white/10 text-white' : 'bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-900'} border flex items-center justify-center transition-all text-lg shadow group font-bold`}>
+              <span className="group-hover:scale-125 transition-transform">{dir === 'rtl' ? '→' : '←'}</span>
             </button>
+
             <div>
-              <h1 className="text-base font-black tracking-tight">{t('setup_title')}</h1>
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: `${activeColor}99` }}>
+              <h1 className="text-lg font-black tracking-tight drop-shadow-md">{t('setup_title')}</h1>
+              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-500">
                 {t('setup_subtitle')}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Smart Search */}
-            <div className="hidden md:block relative group">
-              <div className="absolute inset-y-0 start-0 ps-3.5 flex items-center pointer-events-none text-white/20 group-focus-within:text-white/60 transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              </div>
-              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                id="setup-search"
+          {/* Center: Search + Nav Hints + Share */}
+          <div className="flex-1 max-w-3xl flex items-center gap-3">
+            <div className="flex-1">
+              <PremiumSearchBar
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 placeholder={t('setup_search_ph')}
-                className="bg-white/[0.04] border border-white/[0.08] rounded-2xl py-2 ps-10 pe-12 text-xs font-bold
-                outline-none focus:bg-white/[0.08] focus:border-white/20 transition-all placeholder:text-white/20 w-56
-                focus:ring-4 focus:ring-white/5"/>
-
-              <div className="absolute inset-y-0 end-0 flex items-center pe-2.5 gap-1.5">
-                {searchQuery ? (
-                  <button onClick={() => setSearchQuery('')}
-                    className="p-1 rounded-lg hover:bg-white/10 text-white/25 hover:text-white transition-all">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                ) : (
-                  <div className="px-1.5 py-0.5 rounded-md border border-white/10 bg-white/5 text-[9px] font-black text-white/20 pointer-events-none">
-                    /
-                  </div>
-                )}
-              </div>
-
-              {searchQuery && (
-                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                  className="absolute top-full left-0 right-0 mt-2 px-3 py-1.5 bg-[#12122A] border border-white/10 rounded-xl shadow-2xl z-50">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-white/40">
-                    {filteredTopics.length} {lang === 'AR' ? 'نتائج' : 'results'}
-                  </p>
-                </motion.div>
-              )}
+                lang={lang}
+                accentColor={activeColor}
+              />
             </div>
 
-            {/* Share */}
-            <AnimatePresence>
-              {selectedCount > 0 && (
-                <motion.button initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                  onClick={copyShareUrl}
-                  className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5
-                  border border-white/[0.08] text-white/30 hover:text-white/70 hover:bg-white/10
-                  transition-all text-xs font-bold">
-                  <span>🔗</span><span>شارك</span>
-                </motion.button>
-              )}
-            </AnimatePresence>
+            <div className={`hidden xl:flex items-center gap-3 px-4 py-2.5 rounded-2xl ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-100 border-slate-200 text-slate-800 shadow'} border font-bold text-xs shadow-inner`}>
+              <span className="flex items-center gap-1.5">
+                <kbd className={`px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-white/20 border-white/30 text-white' : 'bg-slate-200 border-slate-300 text-slate-900'} font-black text-[10px]`}>↑</kbd>
+                <kbd className={`px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-white/20 border-white/30 text-white' : 'bg-slate-200 border-slate-300 text-slate-900'} font-black text-[10px]`}>↓</kbd>
+                <span className="ms-1">{lang === 'AR' ? 'التنقل' : 'Topics'}</span>
+              </span>
+              <span className={isDarkMode ? 'text-white/30' : 'text-slate-400'}>•</span>
+              <span className="flex items-center gap-1.5">
+                <kbd className={`px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-white/20 border-white/30 text-white' : 'bg-slate-200 border-slate-300 text-slate-900'} font-black text-[10px]`}>1-9</kbd>
+                <span className="ms-1">{lang === 'AR' ? 'اختيار الفئة' : 'Select'}</span>
+              </span>
 
-            {/* Keyboard hints */}
-            <div className="hidden lg:flex items-center gap-1 text-white/12 text-[10px] font-bold">
-              <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">↑</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">↓</kbd>
-              <span className="mx-0.5 text-white/15">topics</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">1-6</kbd>
-              <span className="text-white/15">cats</span>
-            </div>
-
-            <ProgressRing count={selectedCount} max={MAX_CATS} color={activeColor} />
-
-            <AnimatePresence>
-              {atMax && (
-                <motion.span initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                  className="hidden md:block text-[10px] font-black text-red-400
-                  bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-full whitespace-nowrap">
-                  {lang === 'AR' ? 'وصلت للحد الأقصى' : 'Max reached'}
-                </motion.span>
-              )}
-            </AnimatePresence>
-
-            {/* Next step with animated badge */}
-            <motion.button onClick={() => { setShowTeams(true); toast.success(lang === 'AR' ? 'تجهيز الفرق...' : 'Preparing teams...') }}
-              whileHover={selectedCount > 0 ? { scale: 1.04 } : {}}
-              whileTap={selectedCount > 0 ? { scale: 0.96 } : {}}
-              disabled={selectedCount === 0}
-              className="relative px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest
-              transition-all duration-300 disabled:cursor-not-allowed overflow-visible"
-              style={{
-                background: selectedCount > 0 ? 'white' : 'rgba(255,255,255,0.05)',
-                color: selectedCount > 0 ? 'black' : 'rgba(255,255,255,0.2)',
-                boxShadow: selectedCount > 0 ? '0 0 28px rgba(255,255,255,0.2)' : 'none',
-              }}>
-              {t('setup_next_step')}
               <AnimatePresence>
                 {selectedCount > 0 && (
-                  <motion.span key={selectedCount}
-                    initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                    className="absolute -top-2 -end-2 w-5 h-5 rounded-full bg-red-500 text-white
-                    text-[10px] font-black flex items-center justify-center shadow-lg">
-                    {selectedCount}
-                  </motion.span>
+                  <motion.button initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
+                    onClick={copyShareUrl}
+                    className={`flex items-center gap-1.5 ms-2 px-3 py-1 rounded-xl ${isDarkMode ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white' : 'bg-slate-200 hover:bg-slate-300 border-slate-300 text-slate-900 font-extrabold'} border transition-all text-xs font-black shadow-md`}>
+                    <span>🔗</span><span>{lang === 'AR' ? 'شارك' : 'Share'}</span>
+                  </motion.button>
                 )}
               </AnimatePresence>
+            </div>
+          </div>
+
+          {/* Right: Progress & Next Step Button (Without Category Count) */}
+          <div className="flex items-center gap-4 shrink-0">
+            <ProgressRing count={selectedCount} max={MAX_CATS} color={activeColor} />
+
+            <motion.button onClick={() => { setShowTeams(true); toast.success(lang === 'AR' ? 'تجهيز الفرق...' : 'Preparing teams...') }}
+              whileHover={selectedCount > 0 ? { scale: 1.04, filter: 'brightness(1.15)' } : {}}
+              whileTap={selectedCount > 0 ? { scale: 0.96 } : {}}
+              disabled={selectedCount === 0}
+              className="flex items-center gap-2 px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl disabled:opacity-30 text-white transition-all duration-500 border border-white/40 shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+              style={{
+                background: `linear-gradient(135deg, ${activeTopic?.color ?? activeColor}, rgba(0,0,0,0.85))`,
+                boxShadow: `0 0 35px ${(activeTopic?.color ?? activeColor)}80`
+              }}>
+              <span className="drop-shadow-lg text-sm">{t('setup_next_step')}</span>
+              <span>{dir === 'rtl' ? '←' : '→'}</span>
             </motion.button>
           </div>
         </motion.header>
@@ -1443,20 +1707,21 @@ export default function GameSetupPage() {
         {/* ── MAIN LAYOUT ── */}
         <div className="flex flex-1 overflow-hidden relative z-10">
 
-          {/* ── Topic Sidebar — tinted ── */}
-          <motion.aside animate={{ borderColor: `${activeColor}25`, backgroundColor: `${activeColor}08` }}
-            transition={{ duration: 0.65 }}
-            className="w-72 flex-shrink-0 border-e backdrop-blur-xl flex flex-col overflow-hidden">
+          {/* ── Premium Smart Topic Sidebar ── */}
+          <motion.aside animate={{ borderColor: isDarkMode ? `${activeColor}30` : `${activeColor}40`, backgroundColor: isDarkMode ? `${activeColor}10` : `${activeColor}08` }}
+            transition={{ duration: 0.5 }}
+            className={`w-80 flex-shrink-0 border-e backdrop-blur-2xl flex flex-col overflow-hidden shadow-2xl ${isDarkMode ? 'bg-[#060411]/90 text-white' : 'bg-white/95 text-slate-900 border-slate-200 shadow-xl'}`}>
 
             {/* Sort */}
             <div className="px-4 pt-4 pb-2">
-              <div className="flex gap-1 p-1 rounded-2xl bg-white/[0.03] border border-white/5">
+              <div className={`flex gap-1.5 p-1.5 rounded-2xl ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-slate-100 border-slate-200'} border backdrop-blur-xl shadow-inner`}>
                 {(['admin', 'alpha', 'popular', 'new'] as const).map(s => (
                   <button key={s} onClick={() => setSortBy(s)}
-                    className="flex-1 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-tight transition-all"
+                    className="flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-tight transition-all shadow-sm"
                     style={{
-                      background: sortBy === s ? `${activeColor}28` : 'transparent',
-                      color: sortBy === s ? activeColor : 'rgba(255,255,255,0.2)',
+                      background: sortBy === s ? activeColor : 'transparent',
+                      color: sortBy === s ? (isDarkMode ? '#000000' : '#ffffff') : (isDarkMode ? 'rgba(255,255,255,0.6)' : 'rgba(15,23,42,0.6)'),
+                      boxShadow: sortBy === s ? `0 0 20px ${activeColor}` : undefined
                     }}>
                     {t(`setup_sort_${s}` as any)}
                   </button>
@@ -1464,37 +1729,32 @@ export default function GameSetupPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar py-2 px-3 space-y-1">
+            <div className="flex-1 overflow-y-auto no-scrollbar py-2 px-3 space-y-2">
               {filteredTopics.map(topic => {
                 const isActive = activeTopic?.id === topic.id
                 const selCount = topic.categories.filter(c => selectedCategories.includes(c.id)).length
                 return (
-                  <button key={topic.id}
+                  <button key={topic.id} id={`sidebar-topic-${topic.id}`}
                     onClick={() => setActiveTopic(topic)}
-                    onMouseEnter={e => {
-                      // Just glow, handled by isActive/hover classes
-                    }}
-                    className="relative w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl
-                    transition-all duration-200 text-start group overflow-hidden"
+                    className={`relative w-full flex items-center gap-3.5 px-5 py-4 rounded-2xl transition-all duration-300 text-start group overflow-hidden ${isActive ? `shadow-2xl scale-105 z-10 font-bold border ${isDarkMode ? 'border-white/20' : 'border-slate-300 shadow-lg'}` : `border border-transparent ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-slate-100'}`}`}
                     style={{
-                      background: isActive ? `${topic.color ?? activeColor}18` : 'transparent',
-                      borderLeft: isActive ? `2px solid ${topic.color ?? activeColor}` : '2px solid transparent',
+                      backgroundColor: isActive ? `${topic.color ?? activeColor}${isDarkMode ? '35' : '25'}` : undefined,
+                      backgroundImage: isActive ? `linear-gradient(${dir === 'rtl' ? '270deg' : '90deg'}, ${topic.color ?? activeColor}${isDarkMode ? '50' : '40'}, ${isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.5)'})` : undefined,
+                      borderLeft: dir !== 'rtl' && isActive ? `4px solid ${topic.color ?? activeColor}` : undefined,
+                      borderRight: dir === 'rtl' && isActive ? `4px solid ${topic.color ?? activeColor}` : undefined,
                     }}>
-                    <span className={`text-xl transition-transform duration-300 ${isActive ? 'scale-125' : 'group-hover:scale-110'}`}>
+                    <span className={`text-2xl transition-transform duration-300 ${isActive ? 'scale-125 drop-shadow-md' : 'group-hover:scale-110'}`}>
                       {topic.icon ?? '📚'}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-black truncate transition-colors ${isActive ? 'text-white' : 'text-white/40 group-hover:text-white/65'}`}>
+                      <p className={`text-sm font-black truncate transition-colors ${isActive ? (isDarkMode ? 'text-white' : 'text-slate-900 font-extrabold') : (isDarkMode ? 'text-white/60 group-hover:text-white/90' : 'text-slate-600 group-hover:text-slate-900')}`}>
                         {topic.name}
-                      </p>
-                      <p className="text-[9px] text-white/20 font-bold uppercase tracking-wider mt-0.5">
-                        {topic.categories.length} {t('setup_cats')}
                       </p>
                     </div>
                     <AnimatePresence>
                       {selCount > 0 && (
                         <motion.span initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0 shadow-xl border border-white/30 drop-shadow"
                           style={{ background: topic.color ?? activeColor }}>
                           {selCount}
                         </motion.span>
@@ -1508,136 +1768,117 @@ export default function GameSetupPage() {
 
           {/* ── Categories Panel ── */}
           <main className="flex-1 overflow-hidden relative">
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
               {activeTopic && (
                 <motion.div key={activeTopic.id}
-                  initial={{ opacity: 0, y: direction * 25, scale: 0.99 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: direction * -25, scale: 0.99 }}
-                  transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
                   className="absolute inset-0 flex flex-col will-change-transform">
 
-                  {/* Banner */}
-                  <div className="relative overflow-hidden" style={{ minHeight: 180 }}>
-                    <AnimatePresence>
-                      {activeTopic.banner_url ? (
-                        <motion.div key={`bn-${activeTopic.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                          transition={{ duration: 0.55 }} className="absolute inset-0">
-                          <img src={activeTopic.banner_url} alt="" className="w-full h-full object-cover opacity-40" />
-                          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#07071A]/55 to-[#07071A]" />
-                        </motion.div>
-                      ) : (
-                        <motion.div key={`bg2-${activeTopic.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                          className="absolute inset-0"
-                          style={{ background: `linear-gradient(135deg, ${activeTopic.color ?? activeColor}1e 0%, transparent 60%)` }} />
-                      )}
-                    </AnimatePresence>
-
-                    <div className="relative z-10 px-10 py-8 flex items-end justify-between gap-6">
-                      <div>
-                        <motion.span initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                          className="text-[10px] font-black uppercase tracking-[0.35em] mb-1.5 block"
-                          style={{ color: activeTopic.color ?? activeColor }}>
-                          {String(activeIndex + 1).padStart(2, '0')} / {String(filteredTopics.length).padStart(2, '0')}
-                        </motion.span>
-                        <motion.h2 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.05 }}
-                          className="text-4xl md:text-5xl font-black tracking-tighter flex items-center gap-4">
+                  {/* Premium Topic Header & Smart Navigation Strip */}
+                  <div className={`relative z-20 px-10 backdrop-blur-2xl border-b shadow-2xl flex flex-col transition-all duration-300 overflow-hidden ${isHeaderMinimized ? 'py-4 gap-3' : 'py-8 gap-6'} ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`} style={{ background: `linear-gradient(135deg, ${activeTopic.color ?? activeColor}${isDarkMode ? '30' : '40'}, ${isDarkMode ? 'rgba(8, 6, 21, 0.95)' : 'rgba(255, 255, 255, 0.95)'} 70%)`, borderBottom: `2px solid ${activeTopic.color ?? activeColor}` }}>
+                    <div className="flex items-start justify-between gap-6">
+                      <div className="flex flex-col">
+                        <h2 className={`font-black tracking-tighter flex items-center gap-4 drop-shadow-xl transition-all duration-300 ${isHeaderMinimized ? 'text-2xl md:text-3xl mb-0' : 'text-4xl md:text-5xl mb-2'} ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                           <span>{activeTopic.icon ?? '📚'}</span><span>{activeTopic.name}</span>
-                        </motion.h2>
-                        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-                          className="text-white/30 text-sm mt-1.5 font-medium">
-                          {activeTopic.categories.length} {t('setup_cats')} •{' '}
-                          {activeTopic.categories.filter(c => selectedCategories.includes(c.id)).length}{' '}
-                          {lang === 'AR' ? 'محددة' : 'selected'}
-                        </motion.p>
+                        </h2>
+
+                        <div className={`overflow-hidden transition-all duration-300 ${isHeaderMinimized ? 'max-h-0 opacity-0' : 'max-h-24 opacity-100'}`}>
+                          <p className={`text-sm md:text-base font-semibold drop-shadow-md max-w-2xl leading-relaxed ${isDarkMode ? 'text-white/80' : 'text-slate-700'}`}>
+                            {(activeTopic as any).tagline ?? getTopicEnhancements(activeTopic.name, lang, 0).tagline}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => { setDirection(-1); activeIndex > 0 && setActiveTopic(filteredTopics[activeIndex - 1]) }}
-                          disabled={activeIndex <= 0}
-                          className="w-10 h-10 rounded-xl bg-white/5 border border-white/[0.08] flex items-center
-                          justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all
-                          disabled:opacity-20 disabled:cursor-not-allowed">
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => {
+                          const nextIdx = activeIndex > 0 ? activeIndex - 1 : filteredTopics.length - 1;
+                          const target = filteredTopics[nextIdx];
+                          setDirection(-1);
+                          setActiveTopic(target);
+                          setTimeout(() => {
+                            document.getElementById(`sidebar-topic-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          }, 50);
+                        }}
+                          className={`rounded-2xl ${isDarkMode ? 'bg-white/10 border-white/20 text-white hover:bg-white/20' : 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200'} border flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95 font-bold ${isHeaderMinimized ? 'w-10 h-10 text-base' : 'w-12 h-12 text-xl'}`}>
                           ↑
                         </button>
-                        <button onClick={() => { setDirection(1); activeIndex < filteredTopics.length - 1 && setActiveTopic(filteredTopics[activeIndex + 1]) }}
-                          disabled={activeIndex >= filteredTopics.length - 1}
-                          className="w-10 h-10 rounded-xl bg-white/5 border border-white/[0.08] flex items-center
-                          justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all
-                          disabled:opacity-20 disabled:cursor-not-allowed">
+                        <button onClick={() => {
+                          const nextIdx = activeIndex < filteredTopics.length - 1 ? activeIndex + 1 : 0;
+                          const target = filteredTopics[nextIdx];
+                          setDirection(1);
+                          setActiveTopic(target);
+                          setTimeout(() => {
+                            document.getElementById(`sidebar-topic-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          }, 50);
+                        }}
+                          className={`rounded-2xl ${isDarkMode ? 'bg-white/10 border-white/20 text-white hover:bg-white/20' : 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200'} border flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95 font-bold ${isHeaderMinimized ? 'w-10 h-10 text-base' : 'w-12 h-12 text-xl'}`}>
                           ↓
                         </button>
                       </div>
                     </div>
+
+                    {/* Smart Chip Strip (Click to Navigate) */}
+                    {selectedCategories.length > 0 && (
+                      <div className={`flex items-center gap-2.5 flex-wrap border-t ${isDarkMode ? 'border-white/10' : 'border-slate-200'} transition-all duration-300 ${isHeaderMinimized ? 'pt-2' : 'pt-4'}`}>
+                        <span className="text-xs font-black uppercase tracking-wider text-emerald-500 me-2 flex items-center gap-1.5">
+                          <span>✓</span>
+                          <span>{lang === 'AR' ? 'المحدد:' : 'Selected:'}</span>
+                        </span>
+                        {selectedCategories.map(id => {
+                          const cat = allCategories.find(c => c.id === id)
+                          const owner = topics.find(t => t.id === cat?.topic_id)
+                          return (
+                            <motion.div key={id} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+                              onClick={() => {
+                                if (owner) {
+                                  setActiveTopic(owner);
+                                  setTimeout(() => {
+                                    const el = document.getElementById(`cat-${id}`);
+                                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  }, 150);
+                                }
+                              }}
+                              className={`group/chip cursor-pointer flex items-center gap-2 rounded-xl border font-black shadow-lg transition-all hover:scale-110 active:scale-95 z-30 ${isHeaderMinimized ? 'px-3 py-1 text-[11px]' : 'px-4 py-2 text-xs'}`}
+                              style={{
+                                borderColor: `${owner?.color ?? activeColor}80`,
+                                background: `${owner?.color ?? activeColor}40`,
+                                boxShadow: `0 4px 20px ${owner?.color ?? activeColor}50`
+                              }}>
+                              <span className="text-white drop-shadow-md">{cat?.name ?? id}</span>
+                              <button onClick={(e) => { e.stopPropagation(); toggleCategory(id); }}
+                                className="text-white/50 hover:text-white transition-colors leading-none ms-1.5 font-black text-sm">✕</button>
+                            </motion.div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Categories */}
-                  <div className="flex-1 overflow-y-auto no-scrollbar px-10 pt-2 pb-28">
-                    <div className="flex items-center justify-between mb-5">
-                      <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">
-                        {t('setup_step_cats')}
-                      </h3>
-
-                    </div>
+                  {/* Categories with Snap Scrolling */}
+                  <div onScroll={(e) => setIsHeaderMinimized((e.currentTarget as HTMLDivElement).scrollTop > 40)} className="flex-1 overflow-y-auto no-scrollbar px-10 pt-8 pb-16 snap-y snap-mandatory scroll-smooth">
                     {activeTopic.categories.length === 0 ? (
-                      <div className="flex items-center justify-center h-40 text-white/20 text-sm font-bold">
+                      <div className={`flex items-center justify-center h-40 font-bold ${isDarkMode ? 'text-white/20' : 'text-slate-400'} text-sm`}>
                         {lang === 'AR' ? 'لا توجد فئات لهذا الموضوع' : 'No categories'}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
+                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-8 pb-12">
                         {activeTopic.categories.map((cat, i) => (
-                          <motion.div key={cat.id} initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-                            transition={{ delay: i * 0.035, duration: 0.5, ease: [0.23, 1, 0.32, 1] }}>
+                          <motion.div key={cat.id} id={`cat-${cat.id}`} className="snap-start scroll-mt-6" initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                            transition={{ delay: i * 0.03, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
                             <CategoryCard3D
                               cat={cat} topic={activeTopic}
                               isSelected={selectedCategories.includes(cat.id)}
                               isBlocked={atMax && !selectedCategories.includes(cat.id)}
                               onToggle={toggleCategory}
+                              isDarkMode={isDarkMode}
                             />
                           </motion.div>
                         ))}
                       </div>
                     )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Selected chip strip & Mascot Guidance */}
-            <AnimatePresence>
-              {selectedCount > 0 && (
-                <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                  className="fixed bottom-0 start-72 end-0 z-20 px-10 py-4
-                  bg-gradient-to-t from-[#07071A]/95 via-[#07071A]/80 to-transparent backdrop-blur-md">
-
-                  {/* Mascot Guidance */}
-                  <div className="absolute -top-16 end-10 flex items-end gap-4 pointer-events-none">
-                    <div className="bg-white/10 backdrop-blur-xl border border-white/20 text-white text-xs font-black px-4 py-2 rounded-2xl rounded-br-none shadow-xl">
-                      {getMascotMessage()}
-                    </div>
-                    <div className="w-16 h-16 drop-shadow-2xl">
-                      <Mascot state={(atMax ? "happy" : "idle") as any} size={64} color={activeColor} />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap relative z-10">
-                    {selectedCategories.map(id => {
-                      const cat = allCategories.find(c => c.id === id)
-                      const owner = topics.find(t => t.id === cat?.topic_id)
-                      return (
-                        <motion.div key={id} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold"
-                          style={{
-                            borderColor: `${owner?.color ?? activeColor}50`,
-                            background: `${owner?.color ?? activeColor}18`,
-                          }}>
-                          <span className="text-white/70">{cat?.name ?? id}</span>
-                          <button onClick={() => toggleCategory(id)}
-                            className="text-white/25 hover:text-white/70 transition-colors leading-none">✕</button>
-                        </motion.div>
-                      )
-                    })}
                   </div>
                 </motion.div>
               )}

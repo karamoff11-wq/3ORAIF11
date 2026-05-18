@@ -4,7 +4,7 @@ import { useMemo, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useGameStore } from '@/store/gameStore'
-import { useFeedbackStore } from '@/store/feedbackStore'
+import { useFeedbackStore, playSound } from '@/store/feedbackStore'
 import { createClient } from '@/lib/supabaseClient'
 import { gameEngine } from '@/lib/gameEngine'
 import dynamic from 'next/dynamic'
@@ -12,10 +12,11 @@ import Mascot, { TEAM_PALETTE } from './Mascot'
 import toast from 'react-hot-toast'
 import { useMascotBehavior } from '@/hooks/useMascotBehavior'
 import { track } from '@/lib/analytics'
+import { usePreflightWarmup } from '@/hooks/useElitePerformance'
 
-// ── Lazy-loaded: only fetched when a question is selected or game ends ──
 const QuestionModal = dynamic(() => import('./QuestionModal'), { ssr: false })
 const Fireworks    = dynamic(() => import('./Fireworks'),     { ssr: false })
+const PunishmentModal = dynamic(() => import('./PunishmentModal'), { ssr: false })
 
 const DIFF_ORDER = ['easy', 'medium', 'hard'] as const
 const DIFF_LABELS = { easy: 'سهل', medium: 'متوسط', hard: 'صعب' }
@@ -37,6 +38,7 @@ export default function GameBoard() {
   const { lang } = useFeedbackStore()
   
   const { triggerReaction, settings } = useMascotBehavior()
+  usePreflightWarmup(sessionQuestions)
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastActivityRef = useRef(Date.now())
   const introPlayedRef = useRef(false)
@@ -45,8 +47,8 @@ export default function GameBoard() {
   const boardMap = useMemo(() => {
     const map: Record<string, Record<string, Record<string, any>>> = {}
     for (const sq of sessionQuestions) {
-      const catId = sq.question?.category_id
-      const diff  = sq.question?.difficulty
+      const catId = sq.category_id || sq.question?.category_id
+      const diff  = sq.difficulty || sq.question?.difficulty
       const tId = sq.team_id
       if (!catId || !diff || !tId) continue
       
@@ -152,7 +154,7 @@ export default function GameBoard() {
     // Check for end of game after modal is closed
     const after = useGameStore.getState()
     const allUsed = after.sessionQuestions.length > 0 && after.sessionQuestions.every(q => q.used)
-    if (allUsed) {
+    if (allUsed && !after.activePunishment) {
       handleEndGame()
     }
   }
@@ -182,6 +184,9 @@ export default function GameBoard() {
     }
   }, [triggerReaction, settings])
 
+  const triggerReactionRef = useRef(triggerReaction)
+  triggerReactionRef.current = triggerReaction
+
   // ── Track game_completed once when the phase transitions to 'finished' ──
   useEffect(() => {
     if (phase === 'finished' && !gameCompletedTrackedRef.current) {
@@ -194,8 +199,20 @@ export default function GameBoard() {
         winner_score: winner?.score ?? 0,
         team_count:   teams.length,
       })
+      playSound('fanfare')
+      triggerReactionRef.current('hype')
     }
   }, [phase, teams, sessionId])
+
+  // ── Transition to end game when punishment popup is closed on the final question ──
+  useEffect(() => {
+    if (!store.activePunishment && store.sessionQuestions.length > 0 && phase !== 'finished') {
+      const allUsed = store.sessionQuestions.every(q => q.used)
+      if (allUsed) {
+        handleEndGame()
+      }
+    }
+  }, [store.activePunishment, store.sessionQuestions, phase])
 
   if (phase === 'finished') {
 
@@ -494,62 +511,65 @@ export default function GameBoard() {
   // getTeamPositionClasses has been moved above the finished-screen early return
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden relative" style={{ background: 'var(--color-bg)' }}>
+    <div className="h-screen flex flex-col overflow-hidden relative bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-white select-none transition-colors duration-700">
       
-      {/* TV LED Edge Pulsating Background */}
-      <motion.div 
-        className="absolute inset-0 pointer-events-none z-0"
-        animate={{ 
-          boxShadow: [
-            `inset 0 0 10px 2px ${activeTeam?.color}30`,
-            `inset 0 0 30px 5px ${activeTeam?.color}60`,
-            `inset 0 0 10px 2px ${activeTeam?.color}30`,
-          ],
-          background: [
-            `radial-gradient(circle at center, ${activeTeam?.color}05 0%, transparent 60%)`,
-            `radial-gradient(circle at center, ${activeTeam?.color}15 0%, transparent 50%)`,
-            `radial-gradient(circle at center, ${activeTeam?.color}05 0%, transparent 60%)`,
-          ]
-        }}
-        transition={{
-          duration: 4,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
+
 
       {/* ── TOP NAV ── */}
-      <div className="relative z-50 flex items-center justify-between px-5 py-3 shrink-0 backdrop-blur-md bg-black/40 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <Mascot state={mascotState as any} size={44} isTalking={isTalking} color={activeTeam?.color || '#6B9FD4'} />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: activeTeam?.color }} />
-              <p className="text-sm font-bold tracking-widest uppercase text-white/90">
-                دور فريق: <span style={{ color: activeTeam?.color }}>{activeTeam?.name}</span>
-              </p>
-            </div>
+      <div className="relative z-50 flex items-center justify-between px-6 py-4 shrink-0 backdrop-blur-xl bg-white/80 dark:bg-black/25 border-b border-slate-200 dark:border-white/10 shadow-lg transition-colors">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Mascot state={mascotState as any} size={48} isTalking={isTalking} color={activeTeam?.color || '#6B9FD4'} />
+          </div>
+          <div className="flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-slate-200/60 dark:bg-white/5 border border-slate-300/60 dark:border-white/10 backdrop-blur-md shadow-inner transition-colors">
+            <span className="w-3 h-3 rounded-full animate-pulse shadow-lg" style={{ background: activeTeam?.color, boxShadow: `0 0 12px ${activeTeam?.color}` }} />
+            <p className="text-sm font-black tracking-wider text-slate-900 dark:text-white/80 flex items-center gap-2">
+              <span>دور الفريق:</span> <span className="font-extrabold text-base drop-shadow" style={{ color: activeTeam?.color }}>{activeTeam?.name}</span>
+            </p>
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button onClick={() => router.push('/dashboard')} className="btn btn-ghost btn-sm">← الرئيسية</button>
-          <button onClick={handleEndGame} className="btn btn-sm"
-            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+        <div className="flex items-center gap-3">
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleEndGame}
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(239,68,68,0.2)] bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 hover:border-red-500/60"
+          >
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             إنهاء اللعبة
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* ── CATEGORY GRID VIEW (ONE PAGE) ── */}
-      <div className="flex-1 overflow-hidden relative z-10 p-4 md:p-6" ref={scrollRef}>
+      <div className="flex-1 overflow-hidden relative z-10 p-4 md:p-6 w-full" ref={scrollRef}>
+        
+        {/* TV LED Edge Pulsating Background - strictly between top bar and bottom bar */}
+        <motion.div 
+          className="absolute inset-0 pointer-events-none z-0"
+          animate={{ 
+            boxShadow: [
+              `inset 0 0 10px 2px ${activeTeam?.color}30`,
+              `inset 0 0 30px 5px ${activeTeam?.color}60`,
+              `inset 0 0 10px 2px ${activeTeam?.color}30`,
+            ],
+            background: [
+              `radial-gradient(circle at center, ${activeTeam?.color}05 0%, transparent 60%)`,
+              `radial-gradient(circle at center, ${activeTeam?.color}15 0%, transparent 50%)`,
+              `radial-gradient(circle at center, ${activeTeam?.color}05 0%, transparent 60%)`,
+            ]
+          }}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
         
         {categories.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-white/50">لا توجد فئات.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-2 gap-4 max-w-[1800px] mx-auto h-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-2 gap-4 max-w-[1800px] w-full mx-auto h-full">
             {categories.map((cat, ci) => (
               <div key={cat.id} className="w-full h-full min-h-0 relative flex items-center justify-center bg-black/20 rounded-[2rem] border border-white/5 shadow-2xl overflow-hidden">
                 
@@ -607,25 +627,27 @@ export default function GameBoard() {
 
                   {/* Category Centerpiece (Flex-1 allows it to take remaining space smoothly) */}
                   <motion.div initial={{ opacity: 0, scale: 0.8 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
-                    className="relative h-full flex-1 flex flex-col items-center justify-end overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] border-x border-white/10 bg-black/40 backdrop-blur-md rounded-xl z-20"
+                    className="relative h-full flex-1 min-w-0 min-h-0 flex flex-col items-center justify-end overflow-hidden shadow-2xl border-x border-white/10 bg-black/10 rounded-xl z-20"
+                    style={{ containerType: 'inline-size' }}
                   >
                     <div className="absolute inset-0 z-10 w-full h-full flex items-center justify-center overflow-hidden">
-                      {cat.image_url ? ( <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover opacity-90" /> ) : 
+                      {cat.image_url ? ( <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover" /> ) : 
                        cat.icon && cat.icon.startsWith('data:image') ? (
-                         <img src={cat.icon} alt={cat.name} className="w-full h-full object-cover opacity-90" />
+                         <img src={cat.icon} alt={cat.name} className="w-full h-full object-cover" />
                        ) :
                        cat.icon ? ( <span className="text-6xl md:text-8xl filter saturate-150 drop-shadow-lg">{cat.icon}</span> ) : 
                        ( <span className="text-6xl md:text-8xl">🎮</span> )
                       }
                     </div>
-                    <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-black/90 to-transparent z-10" />
-                    <h2 className={`relative z-20 font-black tracking-widest text-white/90 uppercase px-2 pb-3 md:pb-6 w-full text-center break-words leading-tight drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] transition-all ${
-                      cat.name.length > 25 ? 'text-[10px] md:text-base' :
-                      cat.name.length > 15 ? 'text-xs md:text-xl' :
-                      'text-sm md:text-2xl'
-                    }`}>
-                      {cat.name}
-                    </h2>
+                    {/* Clean text protection pill at bottom without darkening the photo */}
+                    <div className="absolute inset-x-0 bottom-0 p-2.5 md:p-4 flex items-center justify-center z-20 w-full bg-gradient-to-t from-black/85 via-black/40 to-transparent">
+                      <h2 className="font-black tracking-widest text-white uppercase text-center break-words leading-tight drop-shadow-[0_4px_12px_rgba(0,0,0,1)] transition-all w-full"
+                        style={{
+                          fontSize: `clamp(0.65rem, ${cat.name.length > 20 ? '8cqi' : '11cqi'}, ${cat.name.length > 20 ? '1.15rem' : '1.5rem'})`
+                        }}>
+                        {cat.name}
+                      </h2>
+                    </div>
                   </motion.div>
 
                   {/* Second Group Teams */}
@@ -675,36 +697,37 @@ export default function GameBoard() {
       </div>
 
       {/* ── BOTTOM SCOREBOARD ── */}
-      <div className="relative z-50 shrink-0 px-4 py-3 backdrop-blur-md bg-black/40 border-t border-white/5">
-        <div className="flex gap-3 items-center justify-center flex-wrap">
+      <div className="relative z-50 shrink-0 px-6 py-4 backdrop-blur-xl bg-white/80 dark:bg-black/25 border-t border-slate-200 dark:border-white/10 shadow-xl dark:shadow-[0_-10px_30px_rgba(0,0,0,0.3)] transition-colors">
+        <div className="flex gap-4 items-center justify-center flex-wrap max-w-[1800px] mx-auto">
           {teams.map((team, tIndex) => {
             const isTurn = currentTeamIndex === tIndex;
             return (
               <div key={team.id}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl relative transition-all duration-300 ${isTurn ? 'scale-105' : 'scale-95 opacity-60'}`}
+                className={`flex items-center gap-3.5 px-5 py-3 rounded-2xl relative transition-all duration-500 backdrop-blur-md shadow-xl border bg-slate-100/90 dark:bg-white/[0.03] border-slate-300 dark:border-white/10 ${isTurn ? 'scale-105 z-20 ring-2 ring-offset-2 dark:ring-offset-black' : 'scale-95 opacity-80 dark:opacity-65'}`}
                 style={{ 
-                  background: isTurn ? `${team.color}25` : `${team.color}05`, 
-                  border: `1px solid ${team.color}${isTurn ? '50' : '20'}`,
-                  boxShadow: isTurn ? `0 0 20px ${team.color}30` : 'none'
+                  background: isTurn ? `${team.color}25` : undefined, 
+                  borderColor: isTurn ? team.color : undefined,
+                  boxShadow: isTurn ? `0 0 25px ${team.color}40` : '0 4px 12px rgba(0,0,0,0.1)',
+                  ...(isTurn ? { '--tw-ring-color': team.color } as any : {})
                 }}>
                 
                 {store.streaks[team.id] > 1 && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className="absolute -top-2 -right-2 text-xs font-black px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10"
-                    style={{ background: '#f59e0b', color: '#fff', boxShadow: '0 0 10px rgba(245,158,11,0.5)' }}
+                    className="absolute -top-2.5 -right-2.5 text-xs font-black px-2 py-0.5 rounded-full flex items-center gap-1 z-10 shadow-lg border border-amber-300/40"
+                    style={{ background: '#f59e0b', color: '#fff', boxShadow: '0 0 15px rgba(245,158,11,0.6)' }}
                   >
                     🔥 {store.streaks[team.id]}
                   </motion.div>
                 )}
 
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ background: team.color }} />
-                <span className={`font-bold truncate max-w-[120px] transition-all ${
-                  team.name.length > 15 ? 'text-[10px]' :
-                  team.name.length > 10 ? 'text-[11px]' :
-                  'text-sm'
-                }`} style={{ color: 'var(--color-text-primary)' }}>{team.name}</span>
+                <div className="w-3.5 h-3.5 rounded-full shrink-0 shadow-md animate-pulse" style={{ background: team.color, boxShadow: `0 0 10px ${team.color}` }} />
+                <span className={`font-extrabold truncate max-w-[140px] transition-all tracking-wide text-slate-900 dark:text-white ${
+                  team.name.length > 15 ? 'text-xs' :
+                  team.name.length > 10 ? 'text-sm' :
+                  'text-base'
+                }`}>{team.name}</span>
                 <button
                   onClick={async () => {
                     const newScore = Math.max(0, team.score - scoringConfig.easy_points)
@@ -715,10 +738,15 @@ export default function GameBoard() {
                       console.warn('Network issue syncing score')
                     }
                   }}
-                  className="w-7 h-7 rounded-full font-black text-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 bg-red-500/10 text-red-500"
-                >−</button>
-                <span className="text-xl font-black tabular-nums min-w-[3ch] text-center"
-                  style={{ color: team.color, fontFamily: 'var(--font-latin)' }}>
+                  title="خصم 100 نقطة"
+                  className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 bg-gradient-to-br from-red-500/20 to-red-600/10 hover:from-red-500 hover:to-red-600 text-red-500 hover:text-white dark:text-red-400 border border-red-500/30 hover:border-red-500 shadow-sm hover:shadow-[0_0_15px_rgba(239,68,68,0.6)] cursor-pointer select-none group"
+                >
+                  <svg className="w-4 h-4 stroke-[3.5] transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+                <span className="text-2xl font-black tabular-nums min-w-[3ch] text-center drop-shadow"
+                  style={{ color: team.color, fontFamily: 'var(--font-latin)', textShadow: `0 0 15px ${team.color}80` }}>
                   {team.score}
                 </span>
                 <button
@@ -731,8 +759,14 @@ export default function GameBoard() {
                       console.warn('Network issue syncing score')
                     }
                   }}
-                  className="w-7 h-7 rounded-full font-black text-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 bg-green-500/10 text-green-500"
-                >+</button>
+                  title="إضافة 100 نقطة"
+                  className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 bg-gradient-to-br from-green-500/20 to-green-600/10 hover:from-green-500 hover:to-green-600 text-green-600 hover:text-white dark:text-green-400 border border-green-500/30 hover:border-green-500 shadow-sm hover:shadow-[0_0_15px_rgba(34,197,94,0.6)] cursor-pointer select-none group"
+                >
+                  <svg className="w-4 h-4 stroke-[3.5] transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
               </div>
             )
           })}
@@ -752,6 +786,17 @@ export default function GameBoard() {
           />
         )}
       </AnimatePresence>
+
+      {/* ── PUNISHMENT MODAL ── */}
+      <AnimatePresence mode="wait">
+        {store.activePunishment && (
+          <PunishmentModal
+            key={store.activePunishment.punishment.id}
+            active={store.activePunishment}
+            onClose={store.closePunishmentPopup}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -764,53 +809,69 @@ export default function GameBoard() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function FinishedParticles({ color }: { color: string }) {
-  // Generate stable particles once on mount
+  // Generate stable particles once on mount: 100 particles for an ultimate celebration explosion!
   const particles = useState(() =>
-    Array.from({ length: 38 }, (_, i) => ({
-      id:       i,
-      x:        Math.random() * 100,          // vw %
-      size:     Math.random() * 7 + 3,        // px
-      delay:    Math.random() * 2,
-      duration: Math.random() * 3 + 3,        // fall duration
-      wobble:   (Math.random() - 0.5) * 40,   // horizontal drift px
-      // Alternate between winner color, white, and pink
-      hue:      i % 3 === 0 ? color : i % 3 === 1 ? '#ffffff' : '#EC4899',
-      shape:    i % 4,                        // 0=circle 1=square 2=diamond 3=line
-      spin:     Math.random() * 720 - 360,
-    }))
+    Array.from({ length: 100 }, (_, i) => {
+      const isFountain = i < 60; // 60 fast shooting confetti pieces from bottom corners
+      const isLeft = i % 2 === 0;
+      return {
+        id:       i,
+        isFountain,
+        startX:   isFountain ? (isLeft ? Math.random() * 15 : 85 + Math.random() * 15) : Math.random() * 100,
+        targetX:  isFountain ? (isLeft ? Math.random() * 50 + 10 : Math.random() * 50 + 40) : Math.random() * 100,
+        size:     Math.random() * 10 + 6,        // 6px to 16px
+        delay:    isFountain ? Math.random() * 0.5 : Math.random() * 2,
+        duration: isFountain ? Math.random() * 2 + 2.5 : Math.random() * 4 + 4,
+        wobble:   (Math.random() - 0.5) * 60,
+        hue:      i % 4 === 0 ? color : i % 4 === 1 ? '#F59E0B' : i % 4 === 2 ? '#ffffff' : '#EC4899', // Gold, Winner Color, White, Neon Pink
+        shape:    i % 4,                        // 0=circle 1=square 2=diamond 3=line
+        spin:     Math.random() * 1080 - 540,
+        rotateX:  Math.random() * 720,
+        rotateY:  Math.random() * 720,
+      }
+    })
   )[0]
 
   return (
-    <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+    <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" style={{ perspective: 1000 }}>
       {particles.map(p => (
         <motion.div
           key={p.id}
-          className="absolute"
+          className="absolute shadow-lg"
           style={{
-            left:   `${p.x}%`,
-            top:    '-20px',
+            left:   `${p.startX}%`,
+            top:    p.isFountain ? '105vh' : '-20px',
             width:  p.size,
-            height: p.shape === 3 ? 2 : p.size,
+            height: p.shape === 3 ? 3 : p.size,
             background: p.hue,
+            boxShadow: p.hue === '#F59E0B' ? '0 0 15px rgba(245,158,11,0.8)' : `0 0 10px ${p.hue}60`,
             borderRadius:
               p.shape === 0 ? '50%' :
-              p.shape === 1 ? '2px' :
-              p.shape === 2 ? '2px' : '99px',
-            transform: p.shape === 2 ? 'rotate(45deg)' : undefined,
-            opacity: 0.75,
+              p.shape === 1 ? '3px' :
+              p.shape === 2 ? '3px' : '99px',
+            opacity: 0.85,
           }}
-          animate={{
+          animate={p.isFountain ? {
+            y:       ['0vh', '-80vh', '-10vh', '10vh'],
+            x:       [0, (p.targetX - p.startX) * 0.8, (p.targetX - p.startX) * 1.2, p.wobble],
+            rotateX: [0, p.rotateX],
+            rotateY: [0, p.rotateY],
+            rotateZ: [0, p.spin],
+            opacity: [1, 1, 0.8, 0],
+          } : {
             y:       ['0vh', '110vh'],
-            x:       [0, p.wobble, -p.wobble / 2, p.wobble / 3],
-            rotate:  [0, p.spin],
+            x:       [0, p.wobble, -p.wobble * 0.8, p.wobble * 0.5],
+            rotateX: [0, p.rotateX],
+            rotateY: [0, p.rotateY],
+            rotateZ: [0, p.spin],
             opacity: [0, 0.9, 0.9, 0],
           }}
           transition={{
             duration:    p.duration,
             delay:       p.delay,
             repeat:      Infinity,
-            repeatDelay: Math.random() * 4 + 2,
-            ease:        'easeIn',
+            repeatDelay: Math.random() * 2 + 1,
+            ease:        p.isFountain ? [0.15, 0.85, 0.85, 1] : 'linear',
           }}
         />
       ))}

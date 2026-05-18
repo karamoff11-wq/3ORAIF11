@@ -4,13 +4,15 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabaseClient'
-import { useFeedbackStore } from '@/store/feedbackStore'
+import { useFeedbackStore, playSound } from '@/store/feedbackStore'
 import { useTranslator } from '@/lib/i18n'
 import { Database } from '@/types/database'
 type Profile = Database['public']['Tables']['profiles']['Row']
 import { ensureAuthenticated } from '@/lib/testMode'
 import { themesList } from '@/lib/themes'
 import React from 'react'
+import { CanvasText } from '@/components/CanvasText'
+import { VortexDemoSecond } from '@/components/VortexDemoSecond'
 
 // ─────────────────────────────────────────────
 // REUSABLE HUD COMPONENTS (Moved outside for performance)
@@ -21,7 +23,9 @@ const SmartHeader = React.memo(({ title, icon, isRtl, accentColor }: { title: st
       <div className={`flex flex-col ${isRtl ? 'items-end' : 'items-start'}`}>
         <div className="flex items-center gap-3">
            <span className="text-xl filter drop-shadow-lg">{icon}</span>
-           <h2 className="text-xl font-black tracking-tighter uppercase text-white/90">{title}</h2>
+           <h2 className="text-xl font-black tracking-tighter uppercase relative overflow-visible">
+             <CanvasText text={title} colors={[accentColor, "#EC4899", "#8B5CF6", "#3B82F6", "#10B981"]} className="font-black" />
+           </h2>
         </div>
       </div>
     </div>
@@ -90,6 +94,10 @@ export default function SettingsPage() {
     setUserAvatar,
     setUserAvatarColor,
     setUserAvatarType,
+    equippedFrame,
+    setEquippedFrame,
+    soundEffectsEnabled,
+    toggleSoundEffects,
   } = useFeedbackStore()
   
   const [loading, setLoading] = useState(true)
@@ -407,6 +415,9 @@ export default function SettingsPage() {
               )
             })}
           </div>
+          
+          {/* Contained Hero Showcase */}
+          <VortexDemoSecond />
         </div>
 
         {/* Global Preferences */}
@@ -423,24 +434,70 @@ export default function SettingsPage() {
                 </div>
               </SettingRow>
 
-              <SettingRow label={isRtl ? 'وضع الرؤية' : 'Visual Spectrum'} desc={isRtl ? 'اختر النمط البصري المريح لعينيك' : 'Choose the optimal luminosity for your workspace'} isRtl={isRtl}>
-                <div className="flex gap-2 p-2 rounded-[1.5rem] bg-white/5 border border-white/10 backdrop-blur-xl">
+              <SettingRow label={isRtl ? 'وضع الرؤية' : 'Visual Spectrum'} desc={isRtl ? 'تبديل فوري بين النمطين النهاري والليلي' : 'Instant toggle between diurnal and nocturnal modes'} isRtl={isRtl}>
+                <div className="flex items-center justify-center p-3 rounded-[1.5rem] bg-white/5 border border-white/10 backdrop-blur-xl" style={{ fontSize: '18px' }}>
+                  <label className="theme-switch cursor-pointer" title={isRtl ? 'تبديل المظهر' : 'Toggle Theme'}>
+                    <input 
+                      type="checkbox" 
+                      className="theme-switch__checkbox" 
+                      checked={themeMode === 'dark'} 
+                      onChange={(e) => setThemeMode(e.target.checked ? 'dark' : 'light')} 
+                    />
+                    <div className="theme-switch__container">
+                      <div className="theme-switch__clouds" />
+                      <div className="theme-switch__stars-container">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 55" fill="none">
+                          <path fill="currentColor" d="M112.827 16.5517C111.954 12.0298 107.545 9.0768 103.023 9.94978C98.5015 10.8228 95.5485 15.2315 96.4215 19.7534C97.2945 24.2753 101.703 27.2283 106.225 26.3553C110.747 25.4824 113.7 21.0736 112.827 16.5517ZM106.918 22.8465C104.093 23.3923 101.338 21.5466 100.792 18.7214C100.246 15.8962 102.092 13.1408 104.917 12.595C107.742 12.0492 110.498 13.8949 111.043 16.7201C111.589 19.5453 109.743 22.3007 106.918 22.8465Z"/>
+                          <polygon fill="currentColor" points="26,0 27.5,4 31.5,5.5 27.5,7 26,11 24.5,7 20.5,5.5 24.5,4 "/>
+                          <polygon fill="currentColor" points="66,20 67,22.5 69.5,23.5 67,24.5 66,27 65,24.5 62.5,23.5 65,22.5 "/>
+                          <polygon fill="currentColor" points="12,35 13,37.5 15.5,38.5 13,39.5 12,42 11,39.5 8.5,38.5 11,37.5 "/>
+                        </svg>
+                      </div>
+                      <div className="theme-switch__circle-container">
+                        <div className="theme-switch__sun-moon-container">
+                          <div className="theme-switch__moon">
+                            <div className="theme-switch__spot" />
+                            <div className="theme-switch__spot" />
+                            <div className="theme-switch__spot" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </SettingRow>
+
+              <SettingRow label={isRtl ? 'إطار الصورة الرمزية (VIP Halo)' : 'VIP Avatar Halo Frame'} desc={isRtl ? 'اختر وهج الإطار الحركي حول صورتك الرمزية في الجلسات' : 'Select your dynamic holographic avatar border'} isRtl={isRtl}>
+                <div className="flex flex-wrap gap-3">
                   {[
-                    { id: 'light', icon: '☀️' },
-                    { id: 'dark', icon: '🌙' },
-                    { id: 'system', icon: '💻' }
-                  ].map((m) => (
-                    <button key={m.id} onClick={() => setThemeMode(m.id as 'system' | 'light' | 'dark')} className={`w-14 h-14 rounded-xl flex items-center justify-center text-xl transition-all ${themeMode === m.id ? 'bg-white text-black shadow-2xl scale-105' : 'text-white/20 hover:text-white/50'}`}>
-                      {m.icon}
+                    { id: 'none', label: isRtl ? 'بدون' : 'Default' },
+                    { id: 'neon', label: isRtl ? 'نيون سيبر' : 'Neon Cyber' },
+                    { id: 'gold', label: isRtl ? 'تاج ذهبي' : 'Golden Crown' },
+                    { id: 'diamond', label: isRtl ? 'أورورا ماسي' : 'Diamond Aurora' },
+                  ].map((frame) => (
+                    <button
+                      key={frame.id}
+                      onClick={() => {
+                        playSound('chime')
+                        setEquippedFrame(frame.id)
+                      }}
+                      className={`px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest border transition-all ${equippedFrame === frame.id ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-white/5 border-white/5 opacity-50 hover:opacity-100'}`}
+                    >
+                      {frame.label}
                     </button>
                   ))}
                 </div>
               </SettingRow>
 
-              <SettingRow label={isRtl ? 'النظام الصوتي' : 'Acoustic Engine'} desc={isRtl ? 'تفعيل المؤثرات الصوتية والموسيقى المحيطية' : 'Toggle atmospheric sonics and interface audio'} isRtl={isRtl}>
-                <button onClick={() => setIsPlaying(!isPlaying)} className={`px-10 py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] border transition-all ${isPlaying ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.2)]' : 'bg-white/5 border-white/10 text-white/20'}`}>
-                  {isPlaying ? (isRtl ? 'الأنظمة متصلة' : 'Audio Online') : (isRtl ? 'غير متصل' : 'Audio Offline')}
-                </button>
+              <SettingRow label={isRtl ? 'النظام الصوتي والمؤثرات' : 'Acoustic Engine & Haptics'} desc={isRtl ? 'تفعيل الموسيقى المحيطية والمؤثرات الصوتية عند التفاعل' : 'Toggle atmospheric sonics and interactive haptic audio'} isRtl={isRtl}>
+                <div className="flex flex-wrap gap-4">
+                  <button onClick={() => setIsPlaying(!isPlaying)} className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] border transition-all ${isPlaying ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.2)]' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                    {isPlaying ? (isRtl ? 'الموسيقى المحيطية: تعمل' : 'Music: Online') : (isRtl ? 'الموسيقى: متوقفة' : 'Music: Offline')}
+                  </button>
+                  <button onClick={() => { toggleSoundEffects(); playSound('pop'); }} className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] border transition-all ${soundEffectsEnabled ? 'bg-pink-500/10 border-pink-500/30 text-pink-400 shadow-[0_0_30px_rgba(236,72,153,0.2)]' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                    {soundEffectsEnabled ? (isRtl ? 'المؤثرات الصوتية: تعمل' : 'SFX: Online') : (isRtl ? 'المؤثرات: متوقفة' : 'SFX: Offline')}
+                  </button>
+                </div>
               </SettingRow>
           </div>
         </div>

@@ -108,7 +108,7 @@ export default function GamePage() {
 
   const {
     setSession, setPhase, setTeams, setQuestions, setCurrentQuestion, setCurrentTeam,
-    setCategories, setScoringConfig, setTimer, updateScore, markQuestionUsed, teams
+    setCategories, setScoringConfig, setTimer, updateScore, markQuestionUsed, teams, setPunishmentConfig
   } = useGameStore()
 
   const [loading, setLoading] = useState(true)
@@ -142,6 +142,7 @@ export default function GamePage() {
 
       setSession(session.id, session.mode as any)
       setPhase(session.state as any)
+      setPunishmentConfig(session.punishment_mode || null, session.punishments || [])
 
       // Identify Host vs Player
       const { data: { user } } = await supabase.auth.getUser()
