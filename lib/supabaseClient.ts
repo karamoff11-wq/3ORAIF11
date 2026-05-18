@@ -7,14 +7,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
  * Updated to trigger fresh environment variable injection in Cloudflare.
  */
 export const createClient = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    console.warn('Supabase credentials missing — using dummy client (expected during build)');
-    // Return a dummy client to prevent build-time crashes
-    return createSupabaseClient('https://placeholder.supabase.co', 'placeholder');
-  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mbqonwwoazurvkxrffqx.supabase.co';
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_anAvCT0-6AZlKuGb9Ryaig_BFtasoQ1';
 
   return createSupabaseClient(url, key);
 }
